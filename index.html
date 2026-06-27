@@ -742,6 +742,7 @@ input, textarea, select { font: inherit; color: inherit; }
   min-width: 0;
 }
 .textarea { height: auto; padding: 8px 10px; align-items: flex-start; }
+.select:hover { background: var(--bg-alt); border-color: var(--text-mut); }
 .input:focus-within, .select:focus-within, .textarea:focus-within {
   border-color: var(--accent);
   background: var(--bg);
@@ -762,9 +763,10 @@ input, textarea, select { font: inherit; color: inherit; }
 .input input::placeholder { color: var(--text-mut); opacity: 0.6; }
 
 .select { position: relative; padding-right: 24px; cursor: pointer; }
+.select select { appearance: none; -webkit-appearance: none; -moz-appearance: none; cursor: pointer; }
 .select::after {
-  content: "▾"; position: absolute; right: 8px;
-  color: var(--text-mut); pointer-events: none;
+  content: "▾"; position: absolute; right: 10px;
+  color: var(--text-mut); font-size: 0.8em; pointer-events: none;
 }
 
 /* checkbox / radio */
@@ -1216,7 +1218,8 @@ kbd {
 
 /* Dropdown — .btn trigger + opsmenu popover */
 .dropdown-trigger { justify-content: space-between; flex: none; }
-.dropdown-caret { color: var(--text-mut); font-size: 0.8em; transition: transform 120ms; }
+.field > glyph-dropdown .dropdown-trigger { width: 100%; }
+.dropdown-caret { color: var(--text-mut); font-size: 1.15em; line-height: 1; transition: transform 120ms; }
 .dropdown-caret.open { transform: rotate(180deg); }
 .btn.primary .dropdown-caret { color: var(--bg); opacity: 0.85; }
 .dropdown-menu { animation: modal-in 110ms ease; }
@@ -2064,7 +2067,7 @@ body.db-crt::before {
       var left = this._align === "left" ? r.left : null, right = this._align === "right" ? window.innerWidth - r.right : null;
       var selected = this._value != null ? this._items.find(function (it) { return it.value === self._value; }) : null;
       this._caret.classList.add("open");
-      this._menu = h("div", { class: "opsmenu dropdown-menu", role: "menu", style: { position: "fixed", top: r.bottom + 4, left: left != null ? left : "auto", right: right != null ? right : "auto", minWidth: Math.max(r.width, 160) } },
+      this._menu = h("div", { class: "opsmenu dropdown-menu", role: "menu", style: { position: "fixed", top: r.bottom + 4, left: left != null ? left : "auto", right: right != null ? right : "auto", width: "max-content", minWidth: r.width, maxWidth: 320 } },
         this._items.map(function (it, i) {
           if (it.divider) return h("div", { class: "dropdown-sep" });
           var on = selected && it.value === self._value;
@@ -2409,12 +2412,12 @@ body.db-crt::before {
             { name: "width", type: "attr", def: "300", desc: "Field width in px" },
             { name: "change", type: "event", desc: "Fires with the new string in e.detail" }
           ])),
-        Entry({ title: "Text, select & textarea", desc: "Class-based: .input, .select, .textarea — wrap with .field for a label." },
+        Entry({ title: "Text, select & textarea", desc: "Class-based .input and .textarea — wrap with .field for a label. For a select, use a <glyph-dropdown> (select mode): a native <select>'s drop-down list is rendered by the OS and can't be themed, so the component is the only way to keep the open panel on-brand." },
           Specimen({ col: true },
             h("div", { class: "field", style: { width: 280 } }, h("label", {}, "Company name"), h("div", { class: "input" }, h("input", { value: "Acme Corp" }))),
-            h("div", { class: "field", style: { width: 280 } }, h("label", {}, "Plan"), h("div", { class: "select" }, h("select", {}, h("option", { value: "starter" }, "Starter"), h("option", { value: "pro", selected: true }, "Pro"), h("option", { value: "ent" }, "Enterprise")))),
+            (function () { var d = h("glyph-dropdown"); d.config = { value: "pro", onChange: function () {}, items: [{ value: "starter", label: "Starter" }, { value: "pro", label: "Pro" }, { value: "ent", label: "Enterprise" }] }; return h("div", { class: "field", style: { width: 280 } }, h("label", {}, "Plan"), d); })(),
             h("div", { class: "field", style: { width: 280 } }, h("label", {}, "Internal note"), h("div", { class: "textarea" }, h("textarea", { rows: 3 }, "Flagged for billing review.")))),
-          CodeBlock('<div class="field">\n  <label>Company name</label>\n  <div class="input"><input value="Acme Corp"></div>\n</div>\n\n<div class="select">\n  <select>\n    <option value="pro">Pro</option>\n  </select>\n</div>\n\n<div class="textarea"><textarea rows="3"></textarea></div>')),
+          CodeBlock('<div class="field">\n  <label>Company name</label>\n  <div class="input"><input value="Acme Corp"></div>\n</div>\n\n<!-- a select uses <glyph-dropdown> so the open panel is on-brand -->\n<div class="field">\n  <label>Plan</label>\n  <glyph-dropdown></glyph-dropdown>\n</div>\n\n// dd.config = { value: "pro", onChange: setPlan, items: [\n//   { value: "starter", label: "Starter" }, { value: "pro", label: "Pro" } ] }\n\n<div class="textarea"><textarea rows="3"></textarea></div>')),
         Entry({ title: "Checkbox, radio & switch", desc: "Custom marks via a hidden input + .box / .track sibling. Label text sits inline." },
           Specimen({}, checkDemo()),
           CodeBlock('<label class="check">\n  <input type="checkbox" checked>\n  <span class="box"></span> Active\n</label>\n\n<label class="check">\n  <input type="radio" name="perm">\n  <span class="box radio"></span> Read\n</label>\n\n<label class="switch">\n  <input type="checkbox" checked>\n  <span class="track"></span> Email alerts\n</label>'))),
@@ -2436,10 +2439,10 @@ body.db-crt::before {
             { name: "size", type: '"sm"', desc: "Compact trigger (inherits .btn.sm)" },
             { name: "align", type: '"left" | "right"', def: '"left"', desc: "Which edge the menu aligns to" }
           ])),
-        Entry({ title: "Select", api: "el.config = { value, onChange, items }", desc: "Give it a value + onChange and it behaves like a select: the trigger shows the chosen item's label and the active row is checked. A heavier-weight, on-brand alternative to the native .select." },
+        Entry({ title: "Select", api: "el.config = { value, onChange, items }", desc: "Give it a value + onChange and it behaves like a select: the trigger shows the chosen item's label and the active row is checked. Both the trigger and the open panel are themed — unlike a native <select>, whose drop-down list the OS renders." },
           Specimen({}, dropdownSelectDemo()),
           CodeBlock('const dd = document.createElement("glyph-dropdown");\ndd.config = {\n  value: "pro",\n  onChange: (v) => setPlan(v),\n  items: [\n    { value: "starter", label: "Starter" },\n    { value: "pro",     label: "Pro" },\n    { value: "ent",     label: "Enterprise" },\n  ],\n};'),
-          Note("For a simple inline field, the native ", h("code", {}, ".select"), " (see Form elements) is lighter. Reach for ", h("b", {}, "glyph-dropdown"), " when you need icons, hints, dividers, danger items, or a button-styled trigger."))),
+          Note("This is the system's select — it's also what the Plan field in ", h("b", {}, "Form elements"), " uses. Reach for ", h("b", {}, "glyph-dropdown"), " whenever you'd otherwise use a ", h("code", {}, "<select>"), ", or when you need icons, hints, dividers, or danger items."))),
 
       /* ─────────── TABS ─────────── */
       Section({ id: "tabs", no: "C7", title: "Tabs", desc: "An underline tab-bar for switching panes within a screen or modal. It tracks its own active id and fires a change event." },
