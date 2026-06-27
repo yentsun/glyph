@@ -1,8 +1,10 @@
 # Glyph
 
-**A console-inspired UI theme** — a small React design system rendered entirely in
-JetBrains Mono, on a Solarized Light/Dark palette. Square edges, hairline rules, ASCII
-meters, `grep`-style prompts, status dots, and an optional CRT scanline overlay.
+**A console-inspired UI theme** — a small, framework-free design system rendered entirely
+in JetBrains Mono, on a Solarized Light/Dark palette. Square edges, hairline rules, ASCII
+meters, `grep`-style prompts, status dots, and an optional CRT scanline overlay. The
+primitives ship as native [Web Components](https://developer.mozilla.org/en-US/docs/Web/API/Web_components)
+(`<glyph-avatar>`, `<glyph-table>`, …) — no React, no build, no dependencies.
 
 > **Live design book:** https://yentsun.github.io/glyph
 > (enable it under **Settings → Pages → Source: `main`**)
@@ -28,8 +30,8 @@ Glyph treats the terminal as a design language, not a gimmick:
 
 ## What's in the book
 
-A single, self-contained `index.html` documents the system with **live React specimens**,
-copy-paste **JSX snippets**, and **props tables** for each component:
+A single, self-contained `index.html` documents the system with **live Web Component
+specimens**, copy-paste **HTML/JS snippets**, and **props tables** for each component:
 
 - **Foundations** — Color (base scale, accents, semantic tokens), Typography, Theming
 - **Components** — Buttons · Avatars (`Avatar` / `PersonCell`) · Status badges · Tags ·
@@ -41,7 +43,7 @@ responds exactly as a real app would at runtime.
 
 ## Usage
 
-`index.html` is fully self-contained (React + styles inlined). To view it:
+`index.html` is fully self-contained (custom elements + fonts + styles all inlined). To view it:
 
 ```bash
 # just open it
