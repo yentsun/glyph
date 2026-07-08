@@ -1592,22 +1592,31 @@ body { background: var(--bg); }
 .db-section { margin-bottom: 52px; scroll-margin-top: 70px; }
 .db-sec-head { border-bottom: 1px solid var(--rule); padding-bottom: 10px; margin-bottom: 22px; }
 .db-sec-title {
-  display: flex; align-items: baseline; gap: 10px;
+  display: flex; align-items: baseline; gap: 10px; position: relative;
   font-size: var(--fs-xl); color: var(--text-em); font-weight: 700; margin: 0;
 }
 .db-sec-title .no { color: var(--text-mut); font-weight: 400; font-size: var(--fs-md); }
 .db-sec-desc { color: var(--text); margin: 8px 0 0; max-width: 70ch; }
 
 /* component entry */
-.db-entry { margin-bottom: 34px; }
+.db-entry { margin-bottom: 34px; scroll-margin-top: 70px; }
 .db-entry > h3 {
   font-size: var(--fs-md); color: var(--text-em); font-weight: 600;
-  margin: 0 0 4px; display: flex; align-items: baseline; gap: 10px;
+  margin: 0 0 4px; display: flex; align-items: baseline; gap: 10px; position: relative;
 }
 .db-entry > h3 .api {
   color: var(--accent); font-weight: 500; font-size: var(--fs-sm);
 }
 .db-entry > .desc { color: var(--text); margin: 0 0 12px; max-width: 70ch; }
+
+/* section / subsection anchor links */
+.anchor {
+  position: absolute; right: 100%; margin-right: 8px;
+  color: var(--text-mut); text-decoration: none; font-weight: 400;
+  opacity: 0; transition: opacity 120ms, color 120ms;
+}
+.db-sec-title:hover .anchor, .db-entry > h3:hover .anchor, .anchor:focus { opacity: 1; }
+.anchor:hover { color: var(--accent); }
 
 /* specimen frame */
 .db-specimen {
@@ -2210,13 +2219,26 @@ body.db-crt::before {
           h("td", { html: r.desc != null ? String(r.desc) : "" }));
       })));
   }
+  function slug(s) { return String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
+  function scrollToId(id, behavior) {
+    var el = document.getElementById(id);
+    if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 64, behavior: behavior || "smooth" });
+  }
+  function anchor(id) { return h("a", { class: "anchor", href: "#" + id, title: "Link to this section", "aria-label": "Link to this section", onClick: function (e) { e.preventDefault(); e.stopPropagation(); history.pushState(null, "", "#" + id); scrollToId(id, "smooth"); } }, "#"); }
   function Entry(opts) {
     var o = opts || {}, kids = Array.prototype.slice.call(arguments, 1);
-    return h("div", { class: "db-entry", id: o.id }, h("h3", {}, o.title, o.api ? h("span", { class: "api" }, o.api) : null), o.desc ? h("p", { class: "desc" }, o.desc) : null, kids);
+    var e = h("div", { class: "db-entry", id: o.id }, h("h3", {}, o.title, o.api ? h("span", { class: "api" }, o.api) : null), o.desc ? h("p", { class: "desc" }, o.desc) : null, kids);
+    e._title = o.title;
+    return e;
   }
   function Section(opts) {
     var o = opts || {}, kids = Array.prototype.slice.call(arguments, 1);
-    return h("section", { class: "db-section", id: o.id }, h("div", { class: "db-sec-head" }, h("h2", { class: "db-sec-title" }, h("span", { class: "no" }, o.no), o.title), o.desc ? h("p", { class: "db-sec-desc" }, o.desc) : null), kids);
+    var sec = h("section", { class: "db-section", id: o.id }, h("div", { class: "db-sec-head" }, h("h2", { class: "db-sec-title" }, anchor(o.id), h("span", { class: "no" }, o.no), o.title), o.desc ? h("p", { class: "db-sec-desc" }, o.desc) : null), kids);
+    sec.querySelectorAll(".db-entry").forEach(function (e) {
+      if (!e.id && e._title) e.id = o.id + "-" + slug(e._title);
+      if (e.id) { var h3 = e.querySelector("h3"); if (h3 && !h3.querySelector(".anchor")) h3.insertBefore(anchor(e.id), h3.firstChild); }
+    });
+    return sec;
   }
   function Note() { return h("div", { class: "db-note" }, Array.prototype.slice.call(arguments)); }
   function tagEl(tone, txt) { return h("glyph-tag", { tone: tone }, txt); }
@@ -2619,9 +2641,13 @@ body.db-crt::before {
     main.querySelectorAll(".db-section").forEach(function (el) { obs.observe(el); });
 
     function go(id) {
-      var el = document.getElementById(id);
-      if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 64, behavior: "smooth" });
+      scrollToId(id, "smooth");
+      history.replaceState(null, "", "#" + id);
     }
+
+    /* deep-link: honor #hash on load and on back/forward */
+    window.addEventListener("hashchange", function () { if (location.hash) scrollToId(decodeURIComponent(location.hash.slice(1)), "smooth"); });
+    if (location.hash) requestAnimationFrame(function () { scrollToId(decodeURIComponent(location.hash.slice(1)), "auto"); });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", buildBook);
