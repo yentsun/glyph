@@ -1218,6 +1218,7 @@ kbd {
 
 /* Dropdown — .btn trigger + opsmenu popover */
 .dropdown-trigger { justify-content: space-between; flex: none; }
+.dropdown-label { flex: 1 1 auto; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .field > glyph-dropdown .dropdown-trigger { width: 100%; }
 .dropdown-caret { color: var(--text-mut); font-size: 1.15em; line-height: 1; transition: transform 120ms; }
 .dropdown-caret.open { transform: rotate(180deg); }
@@ -1226,6 +1227,14 @@ kbd {
 .dropdown-menu .opsmenu-item.on { color: var(--text-em); }
 .dropdown-menu .opsmenu-item.on .opsmenu-hint { color: var(--accent); }
 .dropdown-sep { height: 1px; background: var(--rule); margin: 3px 0; }
+.dropdown-clear {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.15em; height: 1.15em; margin-left: 2px; flex: none;  font-size: 1.05em; line-height: 1; cursor: pointer;
+  color: var(--text-mut); transition: color 120ms;
+}
+.dropdown-clear:hover { color: var(--red); }
+.btn.primary .dropdown-clear { color: var(--bg); opacity: 0.85; }
+.btn.primary .dropdown-clear:hover { opacity: 1; }
 
 
 .minilink {
@@ -2043,39 +2052,59 @@ body.db-crt::before {
     }
   };
 
-  /* ── <glyph-dropdown> .config={label,items,value,variant,size,align,placeholder,onChange} */
+  /* ── <glyph-dropdown> .config={label,items,value,multiple,variant,size,align,placeholder,onChange} */
   var GlyphDropdown = class extends HTMLElement {
     set config(o) {
-      this._label = o.label; this._items = o.items || []; this._value = o.value;
+      this._label = o.label; this._items = o.items || []; this._multiple = !!o.multiple;
+      this._value = this._multiple ? (o.value || []).slice() : o.value;
       this._variant = o.variant || "default"; this._size = o.size; this._align = o.align || "left";
       this._placeholder = o.placeholder || "Select…"; this._onChange = o.onChange; this._render();
     }
     connectedCallback() { if (this._items) this._render(); }
     disconnectedCallback() { this._close(); }
+    _isOn(it) {
+      if (this._multiple) return this._value.indexOf(it.value) !== -1;
+      return this._value != null && it.value === this._value;
+    }
+    _triggerText() {
+      var self = this;
+      if (this._label != null) return this._label;
+      if (this._multiple) {
+        var picked = this._items.filter(function (it) { return self._isOn(it); });
+        return picked.length === 0 ? this._placeholder
+          : picked.length === 1 ? picked[0].label
+          : picked.length + " selected";
+      }
+      var selected = this._value != null ? this._items.find(function (it) { return it.value === self._value; }) : null;
+      return selected ? selected.label : this._placeholder;
+    }
     _render() {
       var self = this;
-      var selected = this._value != null ? this._items.find(function (it) { return it.value === self._value; }) : null;
-      var triggerText = this._label != null ? this._label : (selected ? selected.label : this._placeholder);
+      var triggerText = this._triggerText();
       var btnCls = ["btn", this._variant !== "default" ? this._variant : "", this._size || "", "dropdown-trigger"].filter(Boolean).join(" ");
       this._caret = h("span", { class: "dropdown-caret" }, "▾");
+      this._labelEl = h("span", { class: "dropdown-label" }, triggerText);
+      var showClear = this._multiple && this._value.length > 0;
+      this._clearBtn = h("span", { class: "dropdown-clear", role: "button", title: "Clear selection", "aria-label": "Clear selection", style: { display: showClear ? "" : "none" }, onClick: function (e) { e.stopPropagation(); self._clear(); } }, "×");
       this._btn = h("button", { class: btnCls, "aria-haspopup": "menu", onClick: function (e) { e.stopPropagation(); self._open ? self._close() : self._openMenu(); } },
-        h("span", { class: "dropdown-label" }, triggerText), this._caret);
+        this._labelEl, this._clearBtn, this._caret);
       this.replaceChildren(this._btn);
     }
     _openMenu() {
       var self = this, r = this._btn.getBoundingClientRect();
       var left = this._align === "left" ? r.left : null, right = this._align === "right" ? window.innerWidth - r.right : null;
-      var selected = this._value != null ? this._items.find(function (it) { return it.value === self._value; }) : null;
       this._caret.classList.add("open");
-      this._menu = h("div", { class: "opsmenu dropdown-menu", role: "menu", style: { position: "fixed", top: r.bottom + 4, left: left != null ? left : "auto", right: right != null ? right : "auto", width: "max-content", minWidth: r.width, maxWidth: 320 } },
-        this._items.map(function (it, i) {
+      var rows = this._items.map(function (it, i) {
           if (it.divider) return h("div", { class: "dropdown-sep" });
-          var on = selected && it.value === self._value;
-          return h("button", { class: "opsmenu-item" + (it.danger ? " danger" : "") + (on ? " on" : ""), role: "menuitem", onClick: function (e) { e.stopPropagation(); self._pick(it); } },
+          var on = self._isOn(it);
+          var btn = h("button", { class: "opsmenu-item" + (it.danger ? " danger" : "") + (on ? " on" : ""), role: self._multiple ? "menuitemcheckbox" : "menuitem", "aria-checked": self._multiple ? String(on) : null, onClick: function (e) { e.stopPropagation(); self._pick(it, e.currentTarget); } },
             it.glyph != null ? h("span", { class: "opsmenu-glyph" }, it.glyph) : null,
             h("span", { class: "opsmenu-txt" }, it.label),
             on ? h("span", { class: "opsmenu-hint" }, "✓") : (it.hint ? h("span", { class: "opsmenu-hint" }, it.hint) : null));
-        }));
+          btn._item = it;
+          return btn;
+        });
+      this._menu = h("div", { class: "opsmenu dropdown-menu", role: "menu", style: { position: "fixed", top: r.bottom + 4, left: left != null ? left : "auto", right: right != null ? right : "auto", width: "max-content", minWidth: r.width, maxWidth: 320 } }, rows);
       document.body.appendChild(this._menu);
       this._open = true;
       this._onDoc = function (e) { if (self._menu && !self._menu.contains(e.target) && !self._btn.contains(e.target)) self._close(); };
@@ -2090,10 +2119,45 @@ body.db-crt::before {
       if (this._onDoc) document.removeEventListener("mousedown", this._onDoc);
       if (this._onKey) document.removeEventListener("keydown", this._onKey, true);
     }
-    _pick(it) {
+    _pick(it, btnEl) {
+      if (this._multiple) {
+        var i = this._value.indexOf(it.value);
+        var on = i === -1;
+        if (on) this._value.push(it.value); else this._value.splice(i, 1);
+        if (btnEl) {
+          btnEl.classList.toggle("on", on);
+          btnEl.setAttribute("aria-checked", String(on));
+          var hint = btnEl.querySelector(".opsmenu-hint");
+          if (on) {
+            if (!hint) { hint = h("span", { class: "opsmenu-hint" }); btnEl.appendChild(hint); }
+            hint.textContent = "✓";
+          } else if (hint && !it.hint) { hint.remove(); }
+          else if (hint) { hint.textContent = it.hint; }
+        }
+        if (this._labelEl) this._labelEl.textContent = this._triggerText();
+        if (this._clearBtn) this._clearBtn.style.display = this._value.length === 0 ? "none" : "";
+        if (this._onChange) this._onChange(this._value.slice());
+        return;
+      }
       this._close();
       if (this._value != null && this._onChange) { this._value = it.value; this._onChange(it.value); this._render(); }
       if (it.onSelect) it.onSelect();
+    }
+    _clear() {
+      if (!this._multiple || !this._value.length) return;
+      this._value = [];
+      if (this._menu) {
+        this._menu.querySelectorAll(".opsmenu-item.on").forEach(function (b) {
+          b.classList.remove("on"); b.setAttribute("aria-checked", "false");
+          var hint = b.querySelector(".opsmenu-hint");
+          var it = b._item;
+          if (it && it.hint) { if (hint) hint.textContent = it.hint; }
+          else if (hint) { hint.remove(); }
+        });
+      }
+      if (this._labelEl) this._labelEl.textContent = this._triggerText();
+      if (this._clearBtn) this._clearBtn.style.display = "none";
+      if (this._onChange) this._onChange([]);
     }
   };
 
@@ -2186,6 +2250,7 @@ body.db-crt::before {
   function searchDemo() { return h("glyph-search", { placeholder: "filter companies…", value: "acme" }); }
   function tabsDemo() { var e = h("glyph-tabs"); e.tabs = [["overview", "Overview"], ["members", "Members"], ["billing", "Billing"]]; e.active = "overview"; return e; }
   function dropdownSelectDemo() { var e = h("glyph-dropdown"); e.config = { value: "pro", onChange: function () {}, items: [{ value: "starter", label: "Starter" }, { value: "pro", label: "Pro" }, { value: "ent", label: "Enterprise" }] }; return e; }
+  function dropdownMultiDemo() { var e = h("glyph-dropdown"); e.config = { multiple: true, value: ["photos", "reviews"], placeholder: "Scopes…", onChange: function () {}, items: [{ value: "photos", label: "Photos" }, { value: "reviews", label: "Reviews" }, { value: "billing", label: "Billing" }, { value: "members", label: "Members" }] }; return e; }
   function checkDemo() {
     return h("div", { class: "db-row", style: { gap: 24 } },
       h("label", { class: "check" }, h("input", { type: "checkbox", checked: true }), h("span", { class: "box" }), "Active"),
@@ -2442,7 +2507,16 @@ body.db-crt::before {
         Entry({ title: "Select", api: "el.config = { value, onChange, items }", desc: "Give it a value + onChange and it behaves like a select: the trigger shows the chosen item's label and the active row is checked. Both the trigger and the open panel are themed — unlike a native <select>, whose drop-down list the OS renders." },
           Specimen({}, dropdownSelectDemo()),
           CodeBlock('const dd = document.createElement("glyph-dropdown");\ndd.config = {\n  value: "pro",\n  onChange: (v) => setPlan(v),\n  items: [\n    { value: "starter", label: "Starter" },\n    { value: "pro",     label: "Pro" },\n    { value: "ent",     label: "Enterprise" },\n  ],\n};'),
-          Note("This is the system's select — it's also what the Plan field in ", h("b", {}, "Form elements"), " uses. Reach for ", h("b", {}, "glyph-dropdown"), " whenever you'd otherwise use a ", h("code", {}, "<select>"), ", or when you need icons, hints, dividers, or danger items."))),
+          Note("This is the system's select — it's also what the Plan field in ", h("b", {}, "Form elements"), " uses. Reach for ", h("b", {}, "glyph-dropdown"), " whenever you'd otherwise use a ", h("code", {}, "<select>"), ", or when you need icons, hints, dividers, or danger items.")),
+        Entry({ title: "Multiselect", api: "el.config = { multiple: true, value, onChange, items }", desc: "Add multiple:true and value becomes an array. Clicking a row toggles it and keeps the panel open; every selected row is checked and the trigger collapses to an \"N selected\" count. A small × clears the whole selection from the trigger whenever something is picked. onChange fires with the new array on each toggle." },
+          Specimen({}, dropdownMultiDemo()),
+          CodeBlock('const dd = document.createElement("glyph-dropdown");\ndd.config = {\n  multiple: true,\n  value: ["photos", "reviews"],\n  placeholder: "Scopes…",\n  onChange: (vals) => setScopes(vals),\n  items: [\n    { value: "photos",   label: "Photos" },\n    { value: "reviews",  label: "Reviews" },\n    { value: "billing",  label: "Billing" },\n    { value: "members",  label: "Members" },\n  ],\n};'),
+          PropsTable([
+            { name: "multiple", type: "boolean", def: "false", desc: "Toggle multiselect mode" },
+            { name: "value", type: "string[]", desc: "Selected values (array in multiple mode)" },
+            { name: "onChange", type: "(vals) => void", desc: "Fires with a copy of the value array on each toggle" },
+            { name: "placeholder", type: "string", def: '"Select…"', desc: "Trigger text when nothing is selected" }
+          ]))),
 
       /* ─────────── TABS ─────────── */
       Section({ id: "tabs", no: "C7", title: "Tabs", desc: "An underline tab-bar for switching panes within a screen or modal. It tracks its own active id and fires a change event." },

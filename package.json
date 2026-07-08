@@ -1,0 +1,10 @@
+{
+  "name": "glyph",
+  "version": "1.0.0",
+  "description": "A console-inspired UI theme rendered in JetBrains Mono on a Solarized palette.",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "npx serve ."
+  }
+}
