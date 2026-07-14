@@ -336,6 +336,10 @@
   --chrome: 36px;   /* tab bar */
   --statusbar: 22px;
   --sidebar: 240px;
+
+  /* Cards */
+  --card-frame-h: 160px;
+  --card-meta-h: 52px;
 }
 
 [data-density="compact"] {
@@ -345,6 +349,8 @@
   --gap: 8px;
   --fs: 12px;
   --fs-md: 13px;
+  --card-frame-h: 124px;
+  --card-meta-h: 44px;
 }
 
 [data-density="comfortable"] {
@@ -354,6 +360,8 @@
   --gap: 16px;
   --fs: 14px;
   --fs-md: 15px;
+  --card-frame-h: 200px;
+  --card-meta-h: 60px;
 }
 
 /* ── Dark mode = Solarized Dark ── */
@@ -1295,7 +1303,7 @@ kbd {
 .photo:hover { border-color: var(--text-mut); }
 .photo.selected { border-color: var(--accent); outline: 1px solid var(--accent); outline-offset: -2px; }
 .photo .frame {
-  aspect-ratio: 4 / 3;
+  height: var(--card-frame-h);
   background: var(--bg-alt);
   position: relative;
   display: grid;
@@ -1325,9 +1333,16 @@ kbd {
   gap: 2px;
   font-size: var(--fs-sm);
   border-top: 1px solid var(--rule);
+  height: var(--card-meta-h);
+  overflow: hidden;
 }
-.photo .meta .name { color: var(--text-em); }
-.photo .meta .sub  { color: var(--text-mut); font-size: var(--fs-xs); }
+.photo .meta .name {
+  color: var(--text-em);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.photo .meta .sub  { color: var(--text-mut); font-size: var(--fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ============================================================
    Toast
@@ -1719,6 +1734,23 @@ body { background: var(--bg); }
   font-size: var(--fs-sm); max-width: 70ch;
 }
 .db-note b { color: var(--text-em); }
+
+.db-changelog { display: flex; flex-direction: column; border: 1px solid var(--rule); }
+.db-cl-entry { display: grid; grid-template-columns: 76px 86px 1fr; gap: 12px; align-items: baseline; padding: 8px 12px; border-bottom: 1px dotted var(--rule); font-size: var(--fs-sm); }
+.db-cl-entry:last-child { border-bottom: none; }
+.db-cl-ver  {
+  color: var(--bg);
+  background: var(--text-em);
+  padding: 1px 6px;
+  font-size: var(--fs-xs);
+  text-align: center;
+  white-space: nowrap;
+}
+.db-cl-ver.major  { background: var(--accent); }
+.db-cl-ver.minor  { background: var(--violet); }
+.db-cl-ver.patch  { background: var(--text-em); }
+.db-cl-date { color: var(--text-mut); font-size: var(--fs-xs); white-space: nowrap; }
+.db-cl-text { color: var(--text); }
 
 @media (max-width: 860px) {
   .db-shell { grid-template-columns: 1fr; }
@@ -2248,7 +2280,7 @@ body.db-crt::before {
   var ACCENTS = [["--yellow", "#b58900"], ["--orange", "#cb4b16"], ["--red", "#dc322f"], ["--magenta", "#d33682"], ["--violet", "#6c71c4"], ["--blue", "#268bd2"], ["--cyan", "#2aa198"], ["--green", "#859900"]];
   var SEMANTIC = [["--bg", "page background"], ["--bg-alt", "raised panel"], ["--bg-dim", "subtle fill"], ["--rule", "borders / grid"], ["--text", "body text"], ["--text-em", "emphasized text"], ["--text-mut", "muted / comments"], ["--accent", "active accent"], ["--accent-bg", "accent wash"]];
   var TYPE_SCALE = [["--fs-2xl", "28px", "Page / hero numerals"], ["--fs-xl", "20px", "Section titles"], ["--fs-lg", "16px", "Subheads"], ["--fs-md", "14px", "Emphasis / labels"], ["--fs", "13px", "Body — the base"], ["--fs-sm", "12px", "Secondary / controls"], ["--fs-xs", "11px", "Captions / meta"]];
-  var NAV = [["Foundations", [["color", "Color"], ["type", "Typography"], ["theming", "Theming"]]], ["Components", [["buttons", "Buttons"], ["avatars", "Avatars"], ["badges", "Status badges"], ["tags", "Tags"], ["forms", "Form elements"], ["dropdown", "Dropdown"], ["tabs", "Tabs"], ["kpi", "KPI tiles"], ["progress", "Progress"], ["tables", "Tables"], ["modals", "Modals"], ["photos", "Photo cards"]]]];
+  var NAV = [["Foundations", [["color", "Color"], ["type", "Typography"], ["theming", "Theming"]]], ["Components", [["buttons", "Buttons"], ["avatars", "Avatars"], ["badges", "Status badges"], ["tags", "Tags"], ["forms", "Form elements"], ["dropdown", "Dropdown"], ["tabs", "Tabs"], ["kpi", "KPI tiles"], ["progress", "Progress"], ["tables", "Tables"], ["modals", "Modals"], ["photos", "Photo cards"]]], ["Changelog", [["changelog", "Changelog"]]]];
   var ACCENT_NAMES = ["blue", "cyan", "green", "yellow", "orange", "red", "magenta", "violet"];
   var ACCENT_HEX = { blue: "#268bd2", cyan: "#2aa198", green: "#859900", yellow: "#b58900", orange: "#cb4b16", red: "#dc322f", magenta: "#d33682", violet: "#6c71c4" };
   var PLAN_TONE = { Enterprise: "violet", Pro: "blue", Starter: "cyan" };
@@ -2618,11 +2650,26 @@ body.db-crt::before {
         Entry({ title: "Photo card", api: ".photogrid > .photo" },
           Specimen({ label: "live · click to select" }, photoCards()),
           CodeBlock('<div class="photogrid">\n  <div class="photo">\n    <div class="frame">\n      <span class="corner">ph_8a2f</span>\n      <pre class="ascii">…</pre>     <!-- or an <img> -->\n      <glyph-badge status="review"></glyph-badge>\n    </div>\n    <div class="meta">\n      <div class="name">Roofing Q2 · <span class="muted">M. Diaz</span></div>\n      <div class="sub">Jun 21 14:02 · 4032×3024 · 3.1 MB</div>\n    </div>\n  </div>\n</div>\n\n// toggle .selected on click\ncard.addEventListener("click", () => card.classList.toggle("selected"));'),
-          Note("The frame is content-agnostic — drop in an ", h("code", {}, "<img>"), " for real captures; here it shows the ASCII placeholder the admin uses before a thumbnail renders. ", h("code", {}, ".photogrid"), " auto-fills at a 180px min column.")))
+          Note("The frame is content-agnostic — drop in an ", h("code", {}, "<img>"), " for real captures; here it shows the ASCII placeholder the admin uses before a thumbnail renders. ", h("code", {}, ".photogrid"), " auto-fills at a 180px min column."))),
+      /* ─────────── CHANGELOG ─────────── */
+      Section({ id: "changelog", no: "H1", title: "Changelog", desc: "All notable changes to the Glyph design book, following semantic versioning." },
+        h("div", { class: "db-changelog" },
+          h("div", { class: "db-cl-entry" },
+            h("span", { class: "db-cl-ver patch" }, "0.1.1"),
+            h("span", { class: "db-cl-date" }, "2026-07-14"),
+            h("span", { class: "db-cl-text" }, "Fix photo cards: replaced flexible ", h("code", {}, "aspect-ratio"), " with fixed pixel height for consistent card dimensions across the grid.")
+          ),
+          h("div", { class: "db-cl-entry" },
+            h("span", { class: "db-cl-ver minor" }, "0.1.0"),
+            h("span", { class: "db-cl-date" }, "2026-07-14"),
+            h("span", { class: "db-cl-text" }, "Initial design book release. Foundations (color, typography, theming) and 12 Web Components (buttons, avatars, badges, tags, forms, dropdown, tabs, KPI, progress, tables, modals, photo cards).")
+          )
+        )
+      )
     );
 
     var top = h("div", { class: "db-top" },
-      h("div", { class: "db-brand" }, h("span", { class: "mark" }, "◆ Glyph"), h("span", { class: "ttl" }, "Design Book"), h("span", { class: "ver" }, "v1 · Web Components")),
+      h("div", { class: "db-brand" }, h("span", { class: "mark" }, "◆ Glyph"), h("span", { class: "ttl" }, "Design Book"), h("span", { class: "ver" }, "v0.1.1")),
       h("div", { class: "spacer" }),
       Controls(state));
 
