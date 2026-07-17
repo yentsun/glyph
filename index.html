@@ -2295,7 +2295,6 @@ body.db-crt::before {
       if (!this.isConnected) return;
       if (name === "value") {
         if (!this._open) { this._start = null; this._end = null; this._render(); }
-        else if (this._labelEl) { this._labelEl.textContent = this._labelText(); }
       } else {
         this._render();
       }
@@ -2343,12 +2342,15 @@ body.db-crt::before {
       var date = this._parse(value);
       return date ? this._fmt(date, format) : placeholder;
     }
+    _updateLabel() {
+      var el = this.querySelector(".dropdown-label");
+      if (el) el.textContent = this._labelText();
+    }
     _render() {
       var self = this;
-      this._labelEl = h("span", { class: "dropdown-label" }, this._labelText());
       this._btn = h("button", { class: "btn dropdown-trigger datepicker-trigger", "aria-haspopup": "dialog", onClick: function (e) { e.stopPropagation(); self._open ? self._close() : self._openCal(); } },
         h("span", { class: "cal-glyph" }, "◫"),
-        this._labelEl);
+        h("span", { class: "dropdown-label" }, this._labelText()));
       this.replaceChildren(this._btn);
     }
     _openCal() {
@@ -2356,8 +2358,11 @@ body.db-crt::before {
       var mode = ga(this, "mode", "single");
       var value = ga(this, "value", ""), format = ga(this, "format", "YYYY-MM-DD");
       if (mode === "range") {
-        var r = this._parseRange(value);
-        this._start = r.start; this._end = r.end; this._hoverEnd = null;
+        if (!this._start) {
+          var r = this._parseRange(value);
+          this._start = r.start; this._end = r.end;
+        }
+        this._hoverEnd = null;
       } else {
         this._sel = this._parse(value);
       }
@@ -2443,12 +2448,12 @@ body.db-crt::before {
       if (mode === "range") {
         if (!this._start || (this._start && this._end)) {
           this._start = date; this._end = null; this._hoverEnd = null;
-          if (this._labelEl) this._labelEl.textContent = this._labelText();
+          this._updateLabel();
           this._renderCal();
         } else {
           this._end = date;
           if (this._ts(this._end) < this._ts(this._start)) { var tmp = this._start; this._start = this._end; this._end = tmp; }
-          if (this._labelEl) this._labelEl.textContent = this._labelText();
+          this._updateLabel();
           var str = this._fmt(this._start, format) + "~" + this._fmt(this._end, format);
           this.setAttribute("value", str);
           this.dispatchEvent(new CustomEvent("change", { detail: { start: this._fmt(this._start, format), end: this._fmt(this._end, format) } }));
@@ -2468,6 +2473,7 @@ body.db-crt::before {
       if (this._onDoc) document.removeEventListener("mousedown", this._onDoc);
       if (this._onKey) document.removeEventListener("keydown", this._onKey, true);
       if (this._onScroll) window.removeEventListener("scroll", this._onScroll);
+      this._updateLabel();
     }
   };
 
