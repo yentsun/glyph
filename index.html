@@ -1798,6 +1798,91 @@ body.db-crt::before {
 .db-crt-btn.on { color: var(--bg); background: var(--accent); border-color: var(--accent); }
 .db-crt-btn.on .led { background: var(--green); border-color: var(--green); box-shadow: 0 0 5px var(--green); }
 
+/* ── Datepicker ─────────────────────────────────────────────── */
+.datepicker-trigger {
+  display: inline-flex; align-items: center; gap: 8px;
+  cursor: pointer; user-select: none;
+}
+.datepicker-trigger .cal-glyph {
+  color: var(--accent); font-size: var(--fs-sm);
+}
+.datepicker-calendar {
+  position: fixed; z-index: 60;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  padding: 10px 12px;
+  min-width: 220px;
+}
+[data-theme="dark"] .datepicker-calendar {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+}
+.datepicker-cal-body {
+  display: flex; gap: 14px;
+}
+.datepicker-cal-panel {
+  flex: 1;
+  min-width: 220px;
+}
+.datepicker-cal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.datepicker-cal-head button {
+  appearance: none; border: 1px solid var(--rule); background: var(--bg);
+  color: var(--text); cursor: pointer; font: inherit; font-size: var(--fs-sm);
+  padding: 2px 7px; line-height: 1;
+}
+.datepicker-cal-head button:hover { background: var(--bg-alt); }
+.datepicker-cal-head .cal-title {
+  font-size: var(--fs-sm); color: var(--text-em); font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.datepicker-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: var(--rule-soft);
+  border: 1px solid var(--rule-soft);
+}
+.datepicker-cal-grid .cal-cell {
+  background: var(--bg);
+  text-align: center; padding: 4px 0;
+  font-size: var(--fs-sm); color: var(--text);
+  cursor: pointer; border: none;
+  font: inherit; appearance: none;
+}
+.datepicker-cal-grid .cal-cell:hover { background: var(--bg-alt); }
+.datepicker-cal-grid .cal-cell.empty { background: var(--bg-dim); cursor: default; }
+.datepicker-cal-grid .cal-cell.empty:hover { background: var(--bg-dim); }
+.datepicker-cal-grid .cal-cell.today { color: var(--accent); font-weight: 700; }
+.datepicker-cal-grid .cal-cell.selected {
+  background: var(--accent); color: var(--bg);
+}
+.datepicker-cal-grid .cal-cell.selected:hover { background: var(--accent); }
+.datepicker-cal-grid .cal-cell.range-start,
+.datepicker-cal-grid .cal-cell.range-end {
+  background: var(--accent); color: var(--bg);
+}
+.datepicker-cal-grid .cal-cell.in-range {
+  background: var(--accent-bg);
+  color: var(--text-em);
+}
+.datepicker-cal-grid .cal-cell.in-range:hover { background: var(--accent-bg); }
+.datepicker-cal-grid .cal-cell.other {
+  color: var(--text-mut);
+}
+.datepicker-cal-weekdays {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 2px;
+}
+.datepicker-cal-weekdays span {
+  text-align: center; font-size: var(--fs-xs);
+  color: var(--text-mut); text-transform: uppercase;
+  letter-spacing: 0.06em; padding: 2px 0;
+}
+
   </style>
 </head>
 <body>
@@ -2202,6 +2287,187 @@ body.db-crt::before {
     }
   };
 
+  /* ── <glyph-datepicker value placeholder format mode> → 'change' event ─────────── */
+  var GlyphDatepicker = class extends HTMLElement {
+    static get observedAttributes() { return ["value", "placeholder", "format", "mode"]; }
+    connectedCallback() { this._render(); }
+    attributeChangedCallback(name) {
+      if (!this.isConnected) return;
+      if (name === "value") {
+        if (!this._open) { this._start = null; this._end = null; this._render(); }
+        else if (this._labelEl) { this._labelEl.textContent = this._labelText(); }
+      } else {
+        this._render();
+      }
+    }
+    _parse(v) {
+      if (!v) return null;
+      var p = v.split(/[-\/]/);
+      if (p.length !== 3) return null;
+      var y = +p[0], m = +p[1], d = +p[2];
+      if (isNaN(y) || isNaN(m) || isNaN(d)) return null;
+      return new Date(y, m - 1, d);
+    }
+    _parseRange(v) {
+      if (!v) return { start: null, end: null };
+      var parts = v.split("~");
+      return { start: this._parse(parts[0]), end: this._parse(parts[1] || "") };
+    }
+    _fmt(d, f) {
+      if (!d) return "";
+      f = f || "YYYY-MM-DD";
+      var yy = String(d.getFullYear()), mm = String(d.getMonth() + 1), dd = String(d.getDate());
+      return f.replace("YYYY", yy).replace("MM", mm.length < 2 ? "0" + mm : mm).replace("DD", dd.length < 2 ? "0" + dd : dd);
+    }
+    _daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
+    _ts(d) { return d ? new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() : null; }
+    _inRange(d, start, end) {
+      var t = this._ts(d), s = this._ts(start), e = this._ts(end);
+      if (s == null || e == null) return false;
+      if (s > e) { var tmp = s; s = e; e = tmp; }
+      return t > s && t < e;
+    }
+    _eq(a, b) {
+      return a && b && a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
+    }
+    _labelText() {
+      var mode = ga(this, "mode", "single");
+      var value = ga(this, "value", ""), placeholder = ga(this, "placeholder", mode === "range" ? "Pick a range…" : "Pick a date…"), format = ga(this, "format", "YYYY-MM-DD");
+      if (mode === "range") {
+        var s = this._start, e = this._end;
+        if (!s && !e) { var r = this._parseRange(value); s = r.start; e = r.end; }
+        if (s && e) return this._fmt(s, format) + " → " + this._fmt(e, format);
+        if (s) return this._fmt(s, format) + " → …";
+        return placeholder;
+      }
+      var date = this._parse(value);
+      return date ? this._fmt(date, format) : placeholder;
+    }
+    _render() {
+      var self = this;
+      this._labelEl = h("span", { class: "dropdown-label" }, this._labelText());
+      this._btn = h("button", { class: "btn dropdown-trigger datepicker-trigger", "aria-haspopup": "dialog", onClick: function (e) { e.stopPropagation(); self._open ? self._close() : self._openCal(); } },
+        h("span", { class: "cal-glyph" }, "◫"),
+        this._labelEl);
+      this.replaceChildren(this._btn);
+    }
+    _openCal() {
+      var self = this;
+      var mode = ga(this, "mode", "single");
+      var value = ga(this, "value", ""), format = ga(this, "format", "YYYY-MM-DD");
+      if (mode === "range") {
+        var r = this._parseRange(value);
+        this._start = r.start; this._end = r.end; this._hoverEnd = null;
+      } else {
+        this._sel = this._parse(value);
+      }
+      var now = new Date();
+      var anchor = mode === "range" && this._start ? this._start : (mode === "single" && this._sel ? this._sel : now);
+      this._view = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+      this._renderCal();
+      this._open = true;
+      this._onDoc = function (e) { if (self._cal && !self._cal.contains(e.target) && !self._btn.contains(e.target)) self._close(); };
+      this._onKey = function (e) { if (e.key === "Escape") self._close(); };
+      document.addEventListener("mousedown", this._onDoc);
+      document.addEventListener("keydown", this._onKey, true);
+    }
+    _monthPanel(viewDate, offset) {
+      var self = this;
+      var mode = ga(this, "mode", "single");
+      var format = ga(this, "format", "YYYY-MM-DD");
+      var y = viewDate.getFullYear(), m = viewDate.getMonth();
+      var firstDay = new Date(y, m, 1).getDay();
+      var days = this._daysInMonth(y, m);
+      var prevDays = this._daysInMonth(y, m - 1);
+      var weekdays = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+      var monthName = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][m];
+      var head = h("div", { class: "datepicker-cal-head" },
+        offset === 0 ? h("button", { onClick: function (e) { e.stopPropagation(); self._view.setMonth(self._view.getMonth() - 1); self._renderCal(); } }, "←") : h("span"),
+        h("span", { class: "cal-title" }, monthName + " " + y),
+        offset === 1 ? h("button", { onClick: function (e) { e.stopPropagation(); self._view.setMonth(self._view.getMonth() + 1); self._renderCal(); } }, "→") : h("span"));
+      var wk = h("div", { class: "datepicker-cal-weekdays" }, weekdays.map(function (w) { return h("span", {}, w); }));
+      var cells = [];
+      var pad = (firstDay + 6) % 7;
+      for (var i = pad - 1; i >= 0; i--) {
+        var pd = prevDays - i;
+        cells.push(h("button", { class: "cal-cell other empty", disabled: true }, String(pd)));
+      }
+      var today = new Date();
+      for (var d = 1; d <= days; d++) {
+        var cd = new Date(y, m, d);
+        var isToday = d === today.getDate() && m === today.getMonth() && y === today.getFullYear();
+        var isSel = false, isStart = false, isEnd = false, inRng = false;
+        if (mode === "single") {
+          isSel = this._eq(cd, this._sel);
+        } else {
+          isStart = this._eq(cd, this._start);
+          isEnd = this._eq(cd, this._end) || this._eq(cd, this._hoverEnd);
+          inRng = this._inRange(cd, this._start, this._hoverEnd || this._end);
+        }
+        (function (day, dateObj) {
+          var cls = "cal-cell" + (isToday ? " today" : "") + (isSel ? " selected" : "") + (isStart ? " range-start" : "") + (isEnd ? " range-end" : "") + (inRng ? " in-range" : "");
+          var btn = h("button", { class: cls,
+            onMouseEnter: function () { if (mode === "range" && self._start && !self._end) { self._hoverEnd = dateObj; self._renderCal(); } },
+            onClick: function (e) { e.stopPropagation(); self._pick(day, m, y, format); }
+          }, String(day));
+          cells.push(btn);
+        })(d, cd);
+      }
+      var rem = (7 - ((pad + days) % 7)) % 7;
+      for (var j = 1; j <= rem; j++) {
+        cells.push(h("button", { class: "cal-cell other empty", disabled: true }, String(j)));
+      }
+      var grid = h("div", { class: "datepicker-cal-grid" }, cells);
+      return h("div", { class: "datepicker-cal-panel" }, head, wk, grid);
+    }
+    _renderCal() {
+      var self = this;
+      if (this._cal) this._cal.remove();
+      var mode = ga(this, "mode", "single");
+      var left = this._monthPanel(this._view, 0);
+      var panels = [left];
+      if (mode === "range") {
+        var rightView = new Date(this._view.getFullYear(), this._view.getMonth() + 1, 1);
+        panels.push(this._monthPanel(rightView, 1));
+      }
+      var body = h("div", { class: "datepicker-cal-body" }, panels);
+      var r = this._btn.getBoundingClientRect();
+      this._cal = h("div", { class: "datepicker-calendar", role: "dialog", "aria-label": "Calendar", style: { position: "fixed", top: r.bottom + 4, left: r.left } }, body);
+      document.body.appendChild(this._cal);
+    }
+    _pick(d, m, y, format) {
+      var mode = ga(this, "mode", "single");
+      var date = new Date(y, m, d);
+      if (mode === "range") {
+        if (!this._start || (this._start && this._end)) {
+          this._start = date; this._end = null; this._hoverEnd = null;
+          if (this._labelEl) this._labelEl.textContent = this._labelText();
+          this._renderCal();
+        } else {
+          this._end = date;
+          if (this._ts(this._end) < this._ts(this._start)) { var tmp = this._start; this._start = this._end; this._end = tmp; }
+          if (this._labelEl) this._labelEl.textContent = this._labelText();
+          var str = this._fmt(this._start, format) + "~" + this._fmt(this._end, format);
+          this.setAttribute("value", str);
+          this.dispatchEvent(new CustomEvent("change", { detail: { start: this._fmt(this._start, format), end: this._fmt(this._end, format) } }));
+          this._close();
+        }
+        return;
+      }
+      var str = this._fmt(date, format);
+      this.setAttribute("value", str);
+      this.dispatchEvent(new CustomEvent("change", { detail: str }));
+      this._close();
+      this._render();
+    }
+    _close() {
+      if (this._cal) { this._cal.remove(); this._cal = null; }
+      this._open = false;
+      if (this._onDoc) document.removeEventListener("mousedown", this._onDoc);
+      if (this._onKey) document.removeEventListener("keydown", this._onKey, true);
+    }
+  };
+
   customElements.define("glyph-avatar", GlyphAvatar);
   customElements.define("glyph-person", GlyphPerson);
   customElements.define("glyph-badge", GlyphBadge);
@@ -2214,6 +2480,7 @@ body.db-crt::before {
   customElements.define("glyph-table", GlyphTable);
   customElements.define("glyph-modal", GlyphModal);
   customElements.define("glyph-dropdown", GlyphDropdown);
+  customElements.define("glyph-datepicker", GlyphDatepicker);
 
   /* ════════════════════════════════════════════════════════════════════════
    *  BOOK CHROME — plain DOM helpers
@@ -2280,7 +2547,7 @@ body.db-crt::before {
   var ACCENTS = [["--yellow", "#b58900"], ["--orange", "#cb4b16"], ["--red", "#dc322f"], ["--magenta", "#d33682"], ["--violet", "#6c71c4"], ["--blue", "#268bd2"], ["--cyan", "#2aa198"], ["--green", "#859900"]];
   var SEMANTIC = [["--bg", "page background"], ["--bg-alt", "raised panel"], ["--bg-dim", "subtle fill"], ["--rule", "borders / grid"], ["--text", "body text"], ["--text-em", "emphasized text"], ["--text-mut", "muted / comments"], ["--accent", "active accent"], ["--accent-bg", "accent wash"]];
   var TYPE_SCALE = [["--fs-2xl", "28px", "Page / hero numerals"], ["--fs-xl", "20px", "Section titles"], ["--fs-lg", "16px", "Subheads"], ["--fs-md", "14px", "Emphasis / labels"], ["--fs", "13px", "Body — the base"], ["--fs-sm", "12px", "Secondary / controls"], ["--fs-xs", "11px", "Captions / meta"]];
-  var NAV = [["Foundations", [["color", "Color"], ["type", "Typography"], ["theming", "Theming"]]], ["Components", [["buttons", "Buttons"], ["avatars", "Avatars"], ["badges", "Status badges"], ["tags", "Tags"], ["forms", "Form elements"], ["dropdown", "Dropdown"], ["tabs", "Tabs"], ["kpi", "KPI tiles"], ["progress", "Progress"], ["tables", "Tables"], ["modals", "Modals"], ["photos", "Photo cards"]]], ["Changelog", [["changelog", "Changelog"]]]];
+  var NAV = [["Foundations", [["color", "Color"], ["type", "Typography"], ["theming", "Theming"]]], ["Components", [["buttons", "Buttons"], ["avatars", "Avatars"], ["badges", "Status badges"], ["tags", "Tags"], ["forms", "Form elements"], ["dropdown", "Dropdown"], ["datepicker", "Datepicker"], ["tabs", "Tabs"], ["kpi", "KPI tiles"], ["progress", "Progress"], ["tables", "Tables"], ["modals", "Modals"], ["photos", "Photo cards"]]], ["Changelog", [["changelog", "Changelog"]]]];
   var ACCENT_NAMES = ["blue", "cyan", "green", "yellow", "orange", "red", "magenta", "violet"];
   var ACCENT_HEX = { blue: "#268bd2", cyan: "#2aa198", green: "#859900", yellow: "#b58900", orange: "#cb4b16", red: "#dc322f", magenta: "#d33682", violet: "#6c71c4" };
   var PLAN_TONE = { Enterprise: "violet", Pro: "blue", Starter: "cyan" };
@@ -2305,6 +2572,8 @@ body.db-crt::before {
   function tabsDemo() { var e = h("glyph-tabs"); e.tabs = [["overview", "Overview"], ["members", "Members"], ["billing", "Billing"]]; e.active = "overview"; return e; }
   function dropdownSelectDemo() { var e = h("glyph-dropdown"); e.config = { value: "pro", onChange: function () {}, items: [{ value: "starter", label: "Starter" }, { value: "pro", label: "Pro" }, { value: "ent", label: "Enterprise" }] }; return e; }
   function dropdownMultiDemo() { var e = h("glyph-dropdown"); e.config = { multiple: true, value: ["photos", "reviews"], placeholder: "Scopes…", onChange: function () {}, items: [{ value: "photos", label: "Photos" }, { value: "reviews", label: "Reviews" }, { value: "billing", label: "Billing" }, { value: "members", label: "Members" }] }; return e; }
+  function datepickerDemo() { return h("glyph-datepicker", { value: "2026-07-17", placeholder: "Pick a date…" }); }
+  function datepickerRangeDemo() { return h("glyph-datepicker", { mode: "range", value: "2026-07-01~2026-07-17", placeholder: "Pick a range…" }); }
   function checkDemo() {
     return h("div", { class: "db-row", style: { gap: 24 } },
       h("label", { class: "check" }, h("input", { type: "checkbox", checked: true }), h("span", { class: "box" }), "Active"),
@@ -2572,8 +2841,30 @@ body.db-crt::before {
             { name: "placeholder", type: "string", def: '"Select…"', desc: "Trigger text when nothing is selected" }
           ]))),
 
+      /* ─────────── DATEPICKER ─────────── */
+      Section({ id: "datepicker", no: "C7", title: "Datepicker", desc: "A calendar dropdown on a button trigger. Single mode shows one month; range mode shows two months side-by-side. Pick a date or a range from the mono grid. Fires a change event with the value." },
+        Entry({ title: "Single date", api: "<glyph-datepicker value placeholder format>", desc: "Click the trigger to open a month grid. Navigate with ← → arrows; today is highlighted in accent, the selected day is filled. Click a day to select and close." },
+          Specimen({}, datepickerDemo()),
+          CodeBlock('<glyph-datepicker value="2026-07-17" placeholder="Pick a date…"></glyph-datepicker>\n\n// listen for selection — e.detail is a string\nel.addEventListener("change", (e) => setDate(e.detail));'),
+          PropsTable([
+            { name: "value", type: "attr", desc: 'Initial date string, e.g. "2026-07-17"' },
+            { name: "placeholder", type: "attr", def: '"Pick a date…"', desc: "Trigger text when no date is chosen" },
+            { name: "format", type: "attr", def: '"YYYY-MM-DD"', desc: "Output format: YYYY, MM, DD tokens" },
+            { name: "mode", type: "attr", def: '"single"', desc: "single · range" },
+            { name: "change", type: "event", desc: "Fires with the formatted date string in e.detail" }
+          ])),
+        Entry({ title: "Date range", api: "<glyph-datepicker mode=\"range\" value placeholder>", desc: "Add mode=\"range\" to show two months side-by-side. Click a start date, then an end date. The range is highlighted with an accent wash between the endpoints. Hover while picking previews the range. The value is a tilde-separated pair: 2026-07-01~2026-07-17." },
+          Specimen({}, datepickerRangeDemo()),
+          CodeBlock('<glyph-datepicker mode="range" value="2026-07-01~2026-07-17" placeholder="Pick a range…"></glyph-datepicker>\n\n// listen for selection — e.detail is { start, end }\nel.addEventListener("change", (e) => setRange(e.detail.start, e.detail.end));'),
+          PropsTable([
+            { name: "value", type: "attr", desc: 'Range string "start~end", e.g. "2026-07-01~2026-07-17"' },
+            { name: "placeholder", type: "attr", def: '"Pick a range…"', desc: "Trigger text when no range is chosen" },
+            { name: "mode", type: "attr", def: '"single"', desc: 'Set to "range" for two-month range picker' },
+            { name: "change", type: "event", desc: "Fires with { start, end } object in e.detail" }
+          ]))),
+
       /* ─────────── TABS ─────────── */
-      Section({ id: "tabs", no: "C7", title: "Tabs", desc: "An underline tab-bar for switching panes within a screen or modal. It tracks its own active id and fires a change event." },
+      Section({ id: "tabs", no: "C8", title: "Tabs", desc: "An underline tab-bar for switching panes within a screen or modal. It tracks its own active id and fires a change event." },
         Entry({ title: "Tabs", api: "el.tabs / el.active / 'change'" },
           Specimen({}, tabsDemo()),
           CodeBlock('const tabs = document.createElement("glyph-tabs");\ntabs.tabs = [["overview", "Overview"], ["members", "Members"], ["billing", "Billing"]];\ntabs.active = "overview";\ntabs.addEventListener("change", (e) => setTab(e.detail));'),
@@ -2584,7 +2875,7 @@ body.db-crt::before {
           ]))),
 
       /* ─────────── KPI ─────────── */
-      Section({ id: "kpi", no: "C8", title: "KPI tiles", desc: "Compact metric cells for dashboard headers: a label, a big value with optional unit, a directional delta, and an optional inline sparkline." },
+      Section({ id: "kpi", no: "C9", title: "KPI tiles", desc: "Compact metric cells for dashboard headers: a label, a big value with optional unit, a directional delta, and an optional inline sparkline." },
         Entry({ title: "KPI tile", api: "<glyph-kpi label value unit delta delta-dir spark>" },
           Specimen({}, h("div", { class: "db-grid-kpi", style: { width: "100%" } },
             h("glyph-kpi", { label: "ACTIVE COMPANIES", value: "1,284", delta: "+3.2% wk", "delta-dir": "up", spark: "▂▃▃▅▆▇█" }),
@@ -2602,7 +2893,7 @@ body.db-crt::before {
           ]))),
 
       /* ─────────── PROGRESS ─────────── */
-      Section({ id: "progress", no: "C9", title: "Progress", desc: "An inline, pure-mono block meter for uploads, quotas, and storage — [████████░░░░] 64%. It stays on the monospace grid, so it reads naturally inside log lines, table cells, and dense panels rather than introducing a filled UI bar that fights the terminal aesthetic." },
+      Section({ id: "progress", no: "C10", title: "Progress", desc: "An inline, pure-mono block meter for uploads, quotas, and storage — [████████░░░░] 64%. It stays on the monospace grid, so it reads naturally inside log lines, table cells, and dense panels rather than introducing a filled UI bar that fights the terminal aesthetic." },
         Entry({ title: "Progress", api: "<glyph-progress value max width>", desc: "Block glyphs (█ / ░) sized to a fixed cell count. The live demo below ticks an in-progress upload." },
           Specimen({ label: "live" }, progressDemo()),
           Specimen({ col: true }, h("glyph-progress", { value: 64, width: 20 }), h("glyph-progress", { value: 92, width: 20 }), h("glyph-progress", { value: 28, width: 12, brackets: "false" })),
@@ -2617,7 +2908,7 @@ body.db-crt::before {
           ]))),
 
       /* ─────────── TABLES ─────────── */
-      Section({ id: "tables", no: "C10", title: "Tables", desc: "The workhorse. Column-driven, sortable, with a select-all header checkbox, per-row selection, optional row click, and a ⋯ actions menu. Pass column render functions to drop any element into a cell." },
+      Section({ id: "tables", no: "C11", title: "Tables", desc: "The workhorse. Column-driven, sortable, with a select-all header checkbox, per-row selection, optional row click, and a ⋯ actions menu. Pass column render functions to drop any element into a cell." },
         Entry({ title: "Table", api: "el.config = { columns, rows, getId, … }" },
           Specimen({ label: "live · sort & select" }, h("div", { style: { width: "100%", border: "1px solid var(--rule)" } }, tableDemo())),
           CodeBlock('const table = document.createElement("glyph-table");\ntable.config = {\n  columns: [\n    { key: "company", label: "company", sortable: true,\n      render: (r) => Object.assign(document.createElement("glyph-person"), { }) ||\n        el("glyph-person", { name: r.company }) },\n    { key: "plan", label: "plan", sortable: true,\n      render: (r) => el("glyph-tag", { tone: PLAN_TONE[r.plan] }, r.plan) },\n    { key: "status", label: "status", sortable: true,\n      render: (r) => el("glyph-badge", { status: r.status }) },\n    { key: "photos", label: "photos", sortable: true, align: "right",\n      render: (r) => r.photos.toLocaleString() },\n  ],\n  rows,\n  getId: (r) => r.id,\n  sort: { key: "photos", dir: "desc" },\n  selected: new Set(),\n  onRowClick: openCompany,\n  rowActions: (r) => [\n    { glyph: "→", label: "Open", hint: "↵", onSelect: () => openCompany(r) },\n    { glyph: "⊘", label: "Suspend", danger: true, onSelect: () => suspend(r) },\n  ],\n};'),
@@ -2633,7 +2924,7 @@ body.db-crt::before {
           Note("Column ", h("b", {}, "render"), " is where the system composes — return a ", h("code", {}, "<glyph-person>"), ", ", h("code", {}, "<glyph-badge>"), ", or ", h("code", {}, "<glyph-tag>"), " and cells stay on-brand for free."))),
 
       /* ─────────── MODALS ─────────── */
-      Section({ id: "modals", no: "C11", title: "Modals", desc: "A scrim + bordered dialog with a titlebar (accent ▌ marker), scrolling body, and an optional footer for actions. Closes on Esc or scrim click. Use size='lg' for detail views, default for confirmations." },
+      Section({ id: "modals", no: "C12", title: "Modals", desc: "A scrim + bordered dialog with a titlebar (accent ▌ marker), scrolling body, and an optional footer for actions. Closes on Esc or scrim click. Use size='lg' for detail views, default for confirmations." },
         Entry({ title: "Modal", api: "<glyph-modal title size>; .footer; .close()" },
           Specimen({ label: "live · click to open" }, modalDemo()),
           CodeBlock('const m = document.createElement("glyph-modal");\nm.setAttribute("title", "Acme Corp");\nm.setAttribute("size", "lg");\nm.footer = [\n  el("button", { class: "btn ghost", onclick: () => m.close() }, "Close"),\n  el("button", { class: "btn primary", onclick: save }, "Save changes"),\n];\nm.append(/* any content — fields, tabs, detail panels */);\ndocument.body.appendChild(m);   // renders the scrim + dialog'),
@@ -2646,7 +2937,7 @@ body.db-crt::before {
           ]))),
 
       /* ─────────── PHOTO CARDS ─────────── */
-      Section({ id: "photos", no: "C12", title: "Photo cards", desc: "The capture grid. Each card is a framed thumbnail with an id corner, a status badge overlay, and a meta row (campaign · captor, then timestamp · dimensions · size). Click to select; the frame turns accent." },
+      Section({ id: "photos", no: "C13", title: "Photo cards", desc: "The capture grid. Each card is a framed thumbnail with an id corner, a status badge overlay, and a meta row (campaign · captor, then timestamp · dimensions · size). Click to select; the frame turns accent." },
         Entry({ title: "Photo card", api: ".photogrid > .photo" },
           Specimen({ label: "live · click to select" }, photoCards()),
           CodeBlock('<div class="photogrid">\n  <div class="photo">\n    <div class="frame">\n      <span class="corner">ph_8a2f</span>\n      <pre class="ascii">…</pre>     <!-- or an <img> -->\n      <glyph-badge status="review"></glyph-badge>\n    </div>\n    <div class="meta">\n      <div class="name">Roofing Q2 · <span class="muted">M. Diaz</span></div>\n      <div class="sub">Jun 21 14:02 · 4032×3024 · 3.1 MB</div>\n    </div>\n  </div>\n</div>\n\n// toggle .selected on click\ncard.addEventListener("click", () => card.classList.toggle("selected"));'),
@@ -2654,6 +2945,11 @@ body.db-crt::before {
       /* ─────────── CHANGELOG ─────────── */
       Section({ id: "changelog", no: "H1", title: "Changelog", desc: "All notable changes to the Glyph design book, following semantic versioning." },
         h("div", { class: "db-changelog" },
+          h("div", { class: "db-cl-entry" },
+            h("span", { class: "db-cl-ver minor" }, "0.2.0"),
+            h("span", { class: "db-cl-date" }, "2026-07-17"),
+            h("span", { class: "db-cl-text" }, "Add ", h("code", {}, "<glyph-datepicker>"), " — calendar dropdown with single-date and range modes. Range mode shows two months side-by-side with hover preview and accent wash highlighting. Now 13 Web Components.")
+          ),
           h("div", { class: "db-cl-entry" },
             h("span", { class: "db-cl-ver patch" }, "0.1.1"),
             h("span", { class: "db-cl-date" }, "2026-07-14"),
@@ -2669,7 +2965,7 @@ body.db-crt::before {
     );
 
     var top = h("div", { class: "db-top" },
-      h("div", { class: "db-brand" }, h("span", { class: "mark" }, "◆ Glyph"), h("span", { class: "ttl" }, "Design Book"), h("span", { class: "ver" }, "v0.1.1")),
+      h("div", { class: "db-brand" }, h("span", { class: "mark" }, "◆ Glyph"), h("span", { class: "ttl" }, "Design Book"), h("span", { class: "ver" }, "v0.2.0")),
       h("div", { class: "spacer" }),
       Controls(state));
 
