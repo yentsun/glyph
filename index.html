@@ -2368,8 +2368,10 @@ body.db-crt::before {
       this._open = true;
       this._onDoc = function (e) { if (self._cal && !self._cal.contains(e.target) && !self._btn.contains(e.target)) self._close(); };
       this._onKey = function (e) { if (e.key === "Escape") self._close(); };
+      this._onScroll = function () { self._close(); };
       document.addEventListener("mousedown", this._onDoc);
       document.addEventListener("keydown", this._onKey, true);
+      window.addEventListener("scroll", this._onScroll, { passive: true });
     }
     _monthPanel(viewDate, offset) {
       var self = this;
@@ -2465,6 +2467,7 @@ body.db-crt::before {
       this._open = false;
       if (this._onDoc) document.removeEventListener("mousedown", this._onDoc);
       if (this._onKey) document.removeEventListener("keydown", this._onKey, true);
+      if (this._onScroll) window.removeEventListener("scroll", this._onScroll);
     }
   };
 
