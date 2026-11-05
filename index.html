@@ -1654,6 +1654,18 @@ body { background: var(--bg); }
   text-transform: uppercase; letter-spacing: 0.08em;
 }
 
+/* specimen tooltip — one shared node, positioned against the viewport */
+.db-tip {
+  position: fixed; z-index: 80; width: max-content; max-width: 280px;
+  padding: 6px 9px; border: 1px solid var(--rule);
+  background: var(--bg-alt); color: var(--text-em);
+  font-size: var(--fs-xs); line-height: 1.5; text-align: left;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+  opacity: 0; transform: translateY(3px); pointer-events: none;
+  transition: opacity 90ms, transform 90ms;
+}
+.db-tip.on { opacity: 1; transform: none; }
+
 /* code block */
 .db-code-wrap { position: relative; margin-top: -1px; }
 .db-code {
@@ -1936,6 +1948,7 @@ body.db-crt::before {
     return el;
   }
   function ga(el, name, def) { return el.hasAttribute(name) ? el.getAttribute(name) : def; }
+  function tip(el, text) { if (el && text) el.setAttribute("data-tip", text); return el; }
 
   /* ── shared bits ────────────────────────────────────────────────────────── */
   var AV_HUES = ["var(--blue)", "var(--cyan)", "var(--green)", "var(--yellow)", "var(--orange)", "var(--magenta)", "var(--violet)"];
@@ -2551,6 +2564,36 @@ body.db-crt::before {
   function Note() { return h("div", { class: "db-note" }, Array.prototype.slice.call(arguments)); }
   function tagEl(tone, txt) { return h("glyph-tag", { tone: tone }, txt); }
 
+  /* ── specimen tooltips: any [data-tip] element, one shared bubble ───────── */
+  var tipEl = null, tipOn = null;
+  function showTip(target) {
+    if (target === tipOn) return;
+    tipOn = target;
+    if (!tipEl) {
+      tipEl = h("div", { class: "db-tip", role: "tooltip" });
+      document.body.appendChild(tipEl);
+    }
+    tipEl.textContent = target.getAttribute("data-tip");
+    tipEl.classList.add("on");
+    var r = target.getBoundingClientRect(), t = tipEl.getBoundingClientRect();
+    var x = Math.min(Math.max(8, r.left + r.width / 2 - t.width / 2), window.innerWidth - t.width - 8);
+    var y = r.top - t.height - 8;
+    if (y < 8) y = r.bottom + 8;
+    tipEl.style.left = Math.round(x) + "px";
+    tipEl.style.top = Math.round(y) + "px";
+  }
+  function hideTip() { tipOn = null; if (tipEl) tipEl.classList.remove("on"); }
+  function tipSource(e) { return e.target && e.target.closest ? e.target.closest("[data-tip]") : null; }
+  document.addEventListener("mouseover", function (e) { var t = tipSource(e); if (t) showTip(t); });
+  document.addEventListener("mouseout", function (e) {
+    var t = tipSource(e);
+    if (t && (!e.relatedTarget || !t.contains(e.relatedTarget))) hideTip();
+  });
+  document.addEventListener("focusin", function (e) { var t = tipSource(e); if (t) showTip(t); });
+  document.addEventListener("focusout", hideTip);
+  window.addEventListener("scroll", hideTip, true);
+  window.addEventListener("resize", hideTip);
+
   /* ── data ───────────────────────────────────────────────────────────────── */
   var BASE_SCALE = [["--base03", "#002b36"], ["--base02", "#073642"], ["--base01", "#586e75"], ["--base00", "#657b83"], ["--base0", "#839496"], ["--base1", "#93a1a1"], ["--base2", "#eee8d5"], ["--base3", "#fdf6e3"]];
   var ACCENTS = [["--yellow", "#b58900"], ["--orange", "#cb4b16"], ["--red", "#dc322f"], ["--magenta", "#d33682"], ["--violet", "#6c71c4"], ["--blue", "#268bd2"], ["--cyan", "#2aa198"], ["--green", "#859900"]];
@@ -2560,6 +2603,7 @@ body.db-crt::before {
   var ACCENT_NAMES = ["blue", "cyan", "green", "yellow", "orange", "red", "magenta", "violet"];
   var ACCENT_HEX = { blue: "#268bd2", cyan: "#2aa198", green: "#859900", yellow: "#b58900", orange: "#cb4b16", red: "#dc322f", magenta: "#d33682", violet: "#6c71c4" };
   var PLAN_TONE = { Enterprise: "violet", Pro: "blue", Starter: "cyan" };
+  var BADGE_TONE = { live: "green", active: "green", trial: "cyan", paused: "yellow", draft: "muted", review: "magenta", info: "blue", archived: "muted", error: "red", suspended: "red" };
   var TABLE_ROWS = [
     { id: "c1", company: "Acme Corp", plan: "Enterprise", status: "active", photos: 48210, mrr: 4200 },
     { id: "c2", company: "Northwind", plan: "Pro", status: "trial", photos: 1204, mrr: 0 },
@@ -2577,21 +2621,21 @@ body.db-crt::before {
   ];
 
   /* ── live demos ───────────────────────────────────────────────────────────*/
-  function searchDemo() { return h("glyph-search", { placeholder: "filter companies…", value: "acme" }); }
-  function tabsDemo() { var e = h("glyph-tabs"); e.tabs = [["overview", "Overview"], ["members", "Members"], ["billing", "Billing"]]; e.active = "overview"; return e; }
-  function dropdownSelectDemo() { var e = h("glyph-dropdown"); e.config = { value: "pro", onChange: function () {}, items: [{ value: "starter", label: "Starter" }, { value: "pro", label: "Pro" }, { value: "ent", label: "Enterprise" }] }; return e; }
-  function dropdownMultiDemo() { var e = h("glyph-dropdown"); e.config = { multiple: true, value: ["photos", "reviews"], placeholder: "Scopes…", onChange: function () {}, items: [{ value: "photos", label: "Photos" }, { value: "reviews", label: "Reviews" }, { value: "billing", label: "Billing" }, { value: "members", label: "Members" }] }; return e; }
-  function datepickerDemo() { return h("glyph-datepicker", { value: "2026-07-17", placeholder: "Pick a date…" }); }
-  function datepickerRangeDemo() { return h("glyph-datepicker", { mode: "range", value: "2026-07-01~2026-07-17", placeholder: "Pick a range…" }); }
+  function searchDemo() { return tip(h("glyph-search", { placeholder: "filter companies…", value: "acme" }), "<glyph-search> — grep-prompt field; green prompt, built-in clear ×"); }
+  function tabsDemo() { var e = h("glyph-tabs"); e.tabs = [["overview", "Overview"], ["members", "Members"], ["billing", "Billing"]]; e.active = "overview"; return tip(e, "<glyph-tabs> — underline tab bar; .tabs pairs ids with labels"); }
+  function dropdownSelectDemo() { var e = h("glyph-dropdown"); e.config = { value: "pro", onChange: function () {}, items: [{ value: "starter", label: "Starter" }, { value: "pro", label: "Pro" }, { value: "ent", label: "Enterprise" }] }; return tip(e, "<glyph-dropdown> select mode — value + onChange; trigger shows the chosen label"); }
+  function dropdownMultiDemo() { var e = h("glyph-dropdown"); e.config = { multiple: true, value: ["photos", "reviews"], placeholder: "Scopes…", onChange: function () {}, items: [{ value: "photos", label: "Photos" }, { value: "reviews", label: "Reviews" }, { value: "billing", label: "Billing" }, { value: "members", label: "Members" }] }; return tip(e, 'multiple: true — value is an array; trigger shows "N selected"'); }
+  function datepickerDemo() { return tip(h("glyph-datepicker", { value: "2026-07-17", placeholder: "Pick a date…" }), "<glyph-datepicker> single mode — one month; value is a YYYY-MM-DD string"); }
+  function datepickerRangeDemo() { return tip(h("glyph-datepicker", { mode: "range", value: "2026-07-01~2026-07-17", placeholder: "Pick a range…" }), 'mode: "range" — two months side-by-side; value is start~end'); }
   function checkDemo() {
     return h("div", { class: "db-row", style: { gap: 24 } },
-      h("label", { class: "check" }, h("input", { type: "checkbox", checked: true }), h("span", { class: "box" }), "Active"),
-      h("label", { class: "check" }, h("input", { type: "checkbox" }), h("span", { class: "box" }), "Archived"),
-      h("label", { class: "check" }, h("input", { type: "radio", name: "r", checked: true }), h("span", { class: "box radio" }), "Read"),
-      h("label", { class: "check" }, h("input", { type: "radio", name: "r" }), h("span", { class: "box radio" }), "Write"),
-      h("label", { class: "switch" }, h("input", { type: "checkbox", checked: true }), h("span", { class: "track" }), "Email alerts"));
+      tip(h("label", { class: "check" }, h("input", { type: "checkbox", checked: true }), h("span", { class: "box" }), "Active"), ".check — checked variant; accent-filled box"),
+      tip(h("label", { class: "check" }, h("input", { type: "checkbox" }), h("span", { class: "box" }), "Archived"), ".check — unchecked variant; hairline box"),
+      tip(h("label", { class: "check" }, h("input", { type: "radio", name: "r", checked: true }), h("span", { class: "box radio" }), "Read"), ".check .radio — selected variant; one per group"),
+      tip(h("label", { class: "check" }, h("input", { type: "radio", name: "r" }), h("span", { class: "box radio" }), "Write"), ".check .radio — unselected variant"),
+      tip(h("label", { class: "switch" }, h("input", { type: "checkbox", checked: true }), h("span", { class: "track" }), "Email alerts"), ".switch — track + knob toggle"));
   }
-  function progressDemo() { var e = h("glyph-progress", { value: 34, width: 20 }); var v = 34; setInterval(function () { v = v >= 100 ? 8 : v + 2; e.setAttribute("value", v); }, 220); return e; }
+  function progressDemo() { var e = h("glyph-progress", { value: 34, width: 20 }); var v = 34; setInterval(function () { v = v >= 100 ? 8 : v + 2; e.setAttribute("value", v); }, 220); return tip(e, "<glyph-progress> — block meter; value/max, fixed-cell width"); }
   function tableDemo() {
     var e = h("glyph-table");
     e.config = {
@@ -2626,7 +2670,9 @@ body.db-crt::before {
         h("p", { class: "helper" }, "All 240 seats lose access immediately. Uploaded photos are retained. This can be reversed from the billing tab.")]);
       document.body.appendChild(m);
     };
-    return h("div", { class: "db-row" }, h("button", { class: "btn", onClick: openDetail }, "Open detail modal"), h("button", { class: "btn danger", onClick: openConfirm }, "Open confirm modal"));
+    return h("div", { class: "db-row" },
+      tip(h("button", { class: "btn", onClick: openDetail }, "Open detail modal"), 'size: "lg" — detail modal with titlebar, body, and footer'),
+      tip(h("button", { class: "btn danger", onClick: openConfirm }, "Open confirm modal"), "confirm pattern — prompt line + helper + danger action"));
   }
   function photoCards() {
     var sel = new Set(["ph_3c7b"]);
@@ -2634,7 +2680,7 @@ body.db-crt::before {
       var card = h("div", { class: "photo" + (sel.has(p.id) ? " selected" : ""), onClick: function () { if (sel.has(p.id)) { sel.delete(p.id); card.classList.remove("selected"); } else { sel.add(p.id); card.classList.add("selected"); } } },
         h("div", { class: "frame" }, h("span", { class: "corner" }, p.id), h("pre", { class: "ascii" }, p.ascii), h("glyph-badge", { status: p.status })),
         h("div", { class: "meta" }, h("div", { class: "name" }, p.camp + " · ", h("span", { class: "muted" }, p.captor)), h("div", { class: "sub" }, p.taken + " · " + p.dims + " · " + p.size)));
-      return card;
+      return tip(card, ".photo — click to toggle .selected; the frame turns accent");
     }));
   }
 
@@ -2703,15 +2749,15 @@ body.db-crt::before {
       Section({ id: "color", no: "F1", title: "Color", desc: "The palette is Solarized. A monochrome base scale carries structure; eight accents carry meaning. UI never hard-codes hex — it reads semantic tokens that remap between light and dark." },
         Entry({ title: "Base scale", desc: "Eight monochrome tones from base03 (darkest) to base3 (lightest paper). Structure, text, and surfaces are built from these." },
           h("div", { class: "db-swatches" }, BASE_SCALE.map(function (s) {
-            return h("div", { class: "db-swatch" }, h("div", { class: "chip", style: { background: s[1] } }), h("div", { class: "meta" }, h("div", { class: "nm" }, s[0]), h("div", { class: "vr" }, s[1])));
+            return tip(h("div", { class: "db-swatch" }, h("div", { class: "chip", style: { background: s[1] } }), h("div", { class: "meta" }, h("div", { class: "nm" }, s[0]), h("div", { class: "vr" }, s[1]))), "var(" + s[0] + ") · " + s[1] + " — monochrome base tone");
           }))),
         Entry({ title: "Accents", desc: "Eight Solarized accents. Pick the active one with the Accent control — components reading var(--accent) recolor instantly." },
           h("div", { class: "db-swatches" }, ACCENTS.map(function (s) {
-            return h("div", { class: "db-swatch" }, h("div", { class: "chip", style: { background: s[1] } }), h("div", { class: "meta" }, h("div", { class: "nm" }, s[0]), h("div", { class: "vr" }, s[1])));
+            return tip(h("div", { class: "db-swatch" }, h("div", { class: "chip", style: { background: s[1] } }), h("div", { class: "meta" }, h("div", { class: "nm" }, s[0]), h("div", { class: "vr" }, s[1]))), "var(" + s[0] + ") · " + s[1] + ' — accent; data-accent="' + s[0].slice(2) + '"');
           }))),
         Entry({ title: "Semantic tokens", desc: "What you actually use in components. These remap automatically under [data-theme] and [data-accent]." },
           h("div", { class: "db-tokens" }, SEMANTIC.map(function (s) {
-            return h("div", { class: "db-token" }, h("span", { class: "sw", style: { background: "var(" + s[0] + ")" } }), h("span", {}, h("div", { class: "nm" }, s[0]), h("div", { class: "vr" }, s[1])));
+            return tip(h("div", { class: "db-token" }, h("span", { class: "sw", style: { background: "var(" + s[0] + ")" } }), h("span", {}, h("div", { class: "nm" }, s[0]), h("div", { class: "vr" }, s[1]))), "var(" + s[0] + ") — " + s[1] + "; remaps with the theme");
           })),
           CodeBlock("/* never hard-code a hex — reach for a semantic token */\n.panel {\n  background: var(--bg-alt);\n  border: 1px solid var(--rule);\n  color: var(--text-em);\n}"))),
 
@@ -2719,14 +2765,14 @@ body.db-crt::before {
       Section({ id: "type", no: "F2", title: "Typography", desc: "One family — JetBrains Mono — at every level, with ligatures and stylistic set ss01 on. The mono grid is the point: numbers align, ASCII art holds, everything feels like a terminal." },
         Entry({ title: "Scale" },
           Specimen({ label: "--fs-*", col: true }, TYPE_SCALE.map(function (t) {
-            return h("div", { class: "db-type-row", style: { width: "100%" } }, h("span", { class: "token" }, t[0] + " · " + t[1]), h("span", { class: "sample", style: { fontSize: "var(" + t[0] + ")" } }, "SimpleCrew · " + t[2]));
+            return tip(h("div", { class: "db-type-row", style: { width: "100%" } }, h("span", { class: "token" }, t[0] + " · " + t[1]), h("span", { class: "sample", style: { fontSize: "var(" + t[0] + ")" } }, "SimpleCrew · " + t[2])), "var(" + t[0] + ") · " + t[1] + " — " + t[2]);
           }))),
         Entry({ title: "Roles", desc: "Three text colors do the heavy lifting; pair with the scale, not with new colors." },
           Specimen({ col: true },
-            h("div", { style: { color: "var(--text-em)" } }, "text-em — headings & primary values"),
-            h("div", { style: { color: "var(--text)" } }, "text — body copy, the default"),
-            h("div", { style: { color: "var(--text-mut)" } }, "text-mut — captions, comments, hints"),
-            h("div", { style: { color: "var(--green)" } }, "// accents reserved for meaning, e.g. the grep prompt")),
+            tip(h("div", { style: { color: "var(--text-em)" } }, "text-em — headings & primary values"), "var(--text-em) — emphasized text: headings, primary values"),
+            tip(h("div", { style: { color: "var(--text)" } }, "text — body copy, the default"), "var(--text) — body copy; the default text color"),
+            tip(h("div", { style: { color: "var(--text-mut)" } }, "text-mut — captions, comments, hints"), "var(--text-mut) — muted text: captions, comments, hints"),
+            tip(h("div", { style: { color: "var(--green)" } }, "// accents reserved for meaning, e.g. the grep prompt"), "var(--green) — accent used for meaning, e.g. the grep prompt")),
           CodeBlock('<h2 style="font-size: var(--fs-xl); color: var(--text-em)">Companies</h2>\n<p style="color: var(--text-mut); font-size: var(--fs-sm)">42 active</p>'))),
 
       /* ─────────── FOUNDATIONS · THEMING ─────────── */
@@ -2742,15 +2788,20 @@ body.db-crt::before {
       Section({ id: "buttons", no: "C1", title: "Buttons", desc: "Square, hairline-bordered, mono. One primary per view; ghost for low-emphasis, danger for destructive. Buttons are plain elements styled by class — no component needed." },
         Entry({ title: "Variants", api: 'class="btn …"' },
           Specimen({},
-            h("button", { class: "btn" }, "Default"), h("button", { class: "btn primary" }, "Primary"), h("button", { class: "btn ghost" }, "Ghost"), h("button", { class: "btn danger" }, "Suspend"), h("button", { class: "btn", disabled: true }, "Disabled")),
+            tip(h("button", { class: "btn" }, "Default"), ".btn — hairline border, muted fill"),
+            tip(h("button", { class: "btn primary" }, "Primary"), ".btn.primary — solid accent fill; one per view"),
+            tip(h("button", { class: "btn ghost" }, "Ghost"), ".btn.ghost — transparent until hover; low emphasis"),
+            tip(h("button", { class: "btn danger" }, "Suspend"), ".btn.danger — red text; destructive actions"),
+            tip(h("span", { style: { display: "inline-flex" } }, h("button", { class: "btn", disabled: true }, "Disabled")), ".btn[disabled] — dims to 45%, blocks pointer")),
           CodeBlock('<button class="btn">Default</button>\n<button class="btn primary">Primary</button>\n<button class="btn ghost">Ghost</button>\n<button class="btn danger">Suspend</button>\n<button class="btn" disabled>Disabled</button>')),
         Entry({ title: "With glyph & small size", desc: "Lead with a muted glyph for scannability; use .sm in dense toolbars." },
           Specimen({},
-            h("button", { class: "btn" }, h("span", { class: "glyph" }, "+"), "New company"),
-            h("button", { class: "btn primary" }, h("span", { class: "glyph" }, "↑"), "Export"),
-            h("button", { class: "btn sm" }, "Filter"), h("button", { class: "btn sm ghost" }, "Reset"),
-            h("button", { class: "iconbtn", title: "More" }, "⋯")),
-          CodeBlock('<button class="btn"><span class="glyph">+</span>New company</button>\n<button class="btn primary"><span class="glyph">↑</span>Export</button>\n<button class="btn sm">Filter</button>\n\n<!-- icon-only, square hit target -->\n<button class="iconbtn" title="More">⋯</button>'),
+            tip(h("button", { class: "btn" }, h("span", { class: "glyph" }, "+"), "New company"), ".btn .glyph — leading muted symbol; label stays scannable"),
+            tip(h("button", { class: "btn primary" }, h("span", { class: "glyph" }, "↑"), "Export"), ".btn.primary .glyph — symbol sits on the accent fill"),
+            tip(h("button", { class: "btn sm" }, "Filter"), ".btn.sm — 24px compact height for dense toolbars"),
+            tip(h("button", { class: "btn sm ghost" }, "Reset"), ".btn.sm.ghost — compact, low-emphasis reset"),
+            tip(h("button", { class: "iconbtn", "aria-label": "More" }, "⋯"), ".iconbtn — square icon-only hit target")),
+          CodeBlock('<button class="btn"><span class="glyph">+</span>New company</button>\n<button class="btn primary"><span class="glyph">↑</span>Export</button>\n<button class="btn sm">Filter</button>\n\n<!-- icon-only, square hit target -->\n<button class="iconbtn" aria-label="More">⋯</button>'),
           PropsTable([
             { name: "primary", type: "class", desc: "Solid accent fill — one per view" },
             { name: "ghost", type: "class", desc: "Transparent until hover" },
@@ -2762,14 +2813,21 @@ body.db-crt::before {
       /* ─────────── AVATARS ─────────── */
       Section({ id: "avatars", no: "C2", title: "Avatars", desc: "Initials in a square, hairline frame — no photos. The frame color is derived deterministically from the name, so a person looks the same everywhere." },
         Entry({ title: "Avatar", api: "<glyph-avatar name lg>" },
-          Specimen({}, h("glyph-avatar", { name: "Acme Corp" }), h("glyph-avatar", { name: "Dana Reyes" }), h("glyph-avatar", { name: "Priya Nair" }), h("glyph-avatar", { name: "Wong Industries", lg: true }), h("glyph-avatar", { name: "Sam Okafor", lg: true })),
+          Specimen({},
+            tip(h("glyph-avatar", { name: "Acme Corp" }), "<glyph-avatar name> — 22px initials; hue derived from the name"),
+            tip(h("glyph-avatar", { name: "Dana Reyes" }), "<glyph-avatar name> — 22px initials; hue derived from the name"),
+            tip(h("glyph-avatar", { name: "Priya Nair" }), "<glyph-avatar name> — 22px initials; hue derived from the name"),
+            tip(h("glyph-avatar", { name: "Wong Industries", lg: true }), "<glyph-avatar lg> — 32px large variant"),
+            tip(h("glyph-avatar", { name: "Sam Okafor", lg: true }), "<glyph-avatar lg> — 32px large variant")),
           CodeBlock('<glyph-avatar name="Dana Reyes"></glyph-avatar>\n<glyph-avatar name="Wong Industries" lg></glyph-avatar>  <!-- 32px instead of 22px -->'),
           PropsTable([
             { name: "name", type: "attr", req: true, desc: "Initials + hue are derived from this" },
             { name: "lg", type: "attr", def: "off", desc: "32px large variant (default 22px)" }
           ])),
         Entry({ title: "Person cell", api: "<glyph-person name sub lg link>", desc: "Avatar + name, with an optional muted sub-line and click target. The default cell for any table row that names a person or company." },
-          Specimen({ col: true }, h("glyph-person", { name: "Dana Reyes", sub: "dana@acme.co" }), h("glyph-person", { name: "Acme Corp", sub: "Enterprise · 240 seats", lg: true, link: true })),
+          Specimen({ col: true },
+            tip(h("glyph-person", { name: "Dana Reyes", sub: "dana@acme.co" }), "<glyph-person name sub> — avatar + name + muted sub-line"),
+            tip(h("glyph-person", { name: "Acme Corp", sub: "Enterprise · 240 seats", lg: true, link: true }), "<glyph-person lg link> — 32px avatar; name is an accent link firing select")),
           CodeBlock('<glyph-person name="Dana Reyes" sub="dana@acme.co"></glyph-person>\n<glyph-person name="Acme Corp" sub="Enterprise · 240 seats" lg link></glyph-person>\n\n// the link variant fires a "select" event\nel.addEventListener("select", () => openCompany(c));'),
           PropsTable([
             { name: "name", type: "attr", req: true, desc: "Display name" },
@@ -2781,7 +2839,9 @@ body.db-crt::before {
       /* ─────────── BADGES ─────────── */
       Section({ id: "badges", no: "C3", title: "Status badges", desc: "A filled pill with a leading dot for lifecycle state. Tone is chosen from the status string, so the same word always reads the same color." },
         Entry({ title: "Status badge", api: "<glyph-badge status>" },
-          Specimen({}, ["live", "active", "trial", "paused", "draft", "review", "info", "archived", "error", "suspended"].map(function (s) { return h("glyph-badge", { status: s }); })),
+          Specimen({}, ["live", "active", "trial", "paused", "draft", "review", "info", "archived", "error", "suspended"].map(function (s) {
+            return tip(h("glyph-badge", { status: s }), '<glyph-badge status="' + s + '"> — ' + BADGE_TONE[s] + " tone, filled pill");
+          })),
           CodeBlock('<glyph-badge status="live"></glyph-badge>\n<glyph-badge status="trial"></glyph-badge>\n<glyph-badge status="suspended"></glyph-badge>'),
           PropsTable([{ name: "status", type: "attr", req: true, desc: "live · active · trial · paused · draft · review · info · archived · error · suspended" }]),
           Note("Reach for a ", h("b", {}, "badge"), " when the value ", h("i", {}, "is"), " the state of a record. For a category or attribute (plan, role), use a ", h("b", {}, "tag"), " instead — flip to the next section."))),
@@ -2789,7 +2849,14 @@ body.db-crt::before {
       /* ─────────── TAGS ─────────── */
       Section({ id: "tags", no: "C4", title: "Tags", desc: "Color-only inline labels (no fill) for categorical attributes — plan, role, type. A leading ▪ in the tone color keeps them legible against text; bare drops it." },
         Entry({ title: "Tag", api: "<glyph-tag tone bare>" },
-          Specimen({}, tagEl("violet", "Enterprise"), tagEl("blue", "Pro"), tagEl("cyan", "Starter"), tagEl("orange", "Admin"), tagEl("green", "Verified"), tagEl("muted", "Internal"), h("glyph-tag", { tone: "blue", bare: true }, "bare")),
+          Specimen({},
+            tip(tagEl("violet", "Enterprise"), '<glyph-tag tone="violet"> — color-only label with ▪ marker'),
+            tip(tagEl("blue", "Pro"), '<glyph-tag tone="blue"> — plan label with ▪ marker'),
+            tip(tagEl("cyan", "Starter"), '<glyph-tag tone="cyan"> — plan label with ▪ marker'),
+            tip(tagEl("orange", "Admin"), '<glyph-tag tone="orange"> — role label with ▪ marker'),
+            tip(tagEl("green", "Verified"), '<glyph-tag tone="green"> — state label with ▪ marker'),
+            tip(tagEl("muted", "Internal"), '<glyph-tag tone="muted"> — neutral label with ▪ marker'),
+            tip(h("glyph-tag", { tone: "blue", bare: true }, "bare"), '<glyph-tag bare> — drops the leading ▪ marker')),
           CodeBlock('<glyph-tag tone="violet">Enterprise</glyph-tag>\n<glyph-tag tone="orange">Admin</glyph-tag>\n<glyph-tag tone="muted">Internal</glyph-tag>\n<glyph-tag tone="blue" bare>no marker</glyph-tag>'),
           PropsTable([
             { name: "tone", type: "attr", def: '"muted"', desc: "violet · blue · cyan · green · yellow · orange · red · magenta · muted" },
@@ -2811,9 +2878,9 @@ body.db-crt::before {
           ])),
         Entry({ title: "Text, select & textarea", desc: "Class-based .input and .textarea — wrap with .field for a label. For a select, use a <glyph-dropdown> (select mode): a native <select>'s drop-down list is rendered by the OS and can't be themed, so the component is the only way to keep the open panel on-brand." },
           Specimen({ col: true },
-            h("div", { class: "field", style: { width: 280 } }, h("label", {}, "Company name"), h("div", { class: "input" }, h("input", { value: "Acme Corp" }))),
-            (function () { var d = h("glyph-dropdown"); d.config = { value: "pro", onChange: function () {}, items: [{ value: "starter", label: "Starter" }, { value: "pro", label: "Pro" }, { value: "ent", label: "Enterprise" }] }; return h("div", { class: "field", style: { width: 280 } }, h("label", {}, "Plan"), d); })(),
-            h("div", { class: "field", style: { width: 280 } }, h("label", {}, "Internal note"), h("div", { class: "textarea" }, h("textarea", { rows: 3 }, "Flagged for billing review.")))),
+            tip(h("div", { class: "field", style: { width: 280 } }, h("label", {}, "Company name"), h("div", { class: "input" }, h("input", { value: "Acme Corp" }))), ".field + .input — square hairline field; border turns accent on focus"),
+            tip((function () { var d = h("glyph-dropdown"); d.config = { value: "pro", onChange: function () {}, items: [{ value: "starter", label: "Starter" }, { value: "pro", label: "Pro" }, { value: "ent", label: "Enterprise" }] }; return h("div", { class: "field", style: { width: 280 } }, h("label", {}, "Plan"), d); })(), ".field + glyph-dropdown — select mode; never a native <select>"),
+            tip(h("div", { class: "field", style: { width: 280 } }, h("label", {}, "Internal note"), h("div", { class: "textarea" }, h("textarea", { rows: 3 }, "Flagged for billing review."))), ".field + .textarea — multiline input on the same grid")),
           CodeBlock('<div class="field">\n  <label>Company name</label>\n  <div class="input"><input value="Acme Corp"></div>\n</div>\n\n<!-- a select uses <glyph-dropdown> so the open panel is on-brand -->\n<div class="field">\n  <label>Plan</label>\n  <glyph-dropdown></glyph-dropdown>\n</div>\n\n// dd.config = { value: "pro", onChange: setPlan, items: [\n//   { value: "starter", label: "Starter" }, { value: "pro", label: "Pro" } ] }\n\n<div class="textarea"><textarea rows="3"></textarea></div>')),
         Entry({ title: "Checkbox, radio & switch", desc: "Custom marks via a hidden input + .box / .track sibling. Label text sits inline." },
           Specimen({}, checkDemo()),
@@ -2826,6 +2893,9 @@ body.db-crt::before {
             var d1 = h("glyph-dropdown"); d1.config = { label: "Actions", items: [{ glyph: "→", label: "Open", hint: "↵", onSelect: function () {} }, { glyph: "✎", label: "Rename", onSelect: function () {} }, { glyph: "⧉", label: "Duplicate", onSelect: function () {} }, { divider: true }, { glyph: "⊘", label: "Suspend", danger: true, onSelect: function () {} }] };
             var d2 = h("glyph-dropdown"); d2.config = { label: "Export", variant: "primary", align: "right", items: [{ glyph: "⤓", label: "Download CSV", onSelect: function () {} }, { glyph: "⤓", label: "Download JSON", onSelect: function () {} }] };
             var d3 = h("glyph-dropdown"); d3.config = { label: "More", variant: "ghost", size: "sm", items: [{ glyph: "★", label: "Pin", onSelect: function () {} }, { glyph: "⎘", label: "Copy link", onSelect: function () {} }] };
+            tip(d1, "<glyph-dropdown> — action menu; the trigger is a real .btn");
+            tip(d2, 'variant: "primary", align: "right" — accent trigger, menu right-aligned');
+            tip(d3, 'variant: "ghost", size: "sm" — compact low-emphasis trigger');
             return [d1, d2, d3];
           })()),
           CodeBlock('const dd = document.createElement("glyph-dropdown");\ndd.config = {\n  label: "Actions",\n  items: [\n    { glyph: "→", label: "Open", hint: "↵", onSelect: open },\n    { glyph: "✎", label: "Rename", onSelect: rename },\n    { divider: true },\n    { glyph: "⊘", label: "Suspend", danger: true, onSelect: suspend },\n  ],\n};\n\n// the trigger is a .btn — every variant & size carries over\ndd.config = { label: "Export", variant: "primary", align: "right", items };\ndd.config = { label: "More",   variant: "ghost",   size: "sm",     items };'),
@@ -2887,10 +2957,10 @@ body.db-crt::before {
       Section({ id: "kpi", no: "C9", title: "KPI tiles", desc: "Compact metric cells for dashboard headers: a label, a big value with optional unit, a directional delta, and an optional inline sparkline." },
         Entry({ title: "KPI tile", api: "<glyph-kpi label value unit delta delta-dir spark>" },
           Specimen({}, h("div", { class: "db-grid-kpi", style: { width: "100%" } },
-            h("glyph-kpi", { label: "ACTIVE COMPANIES", value: "1,284", delta: "+3.2% wk", "delta-dir": "up", spark: "▂▃▃▅▆▇█" }),
-            h("glyph-kpi", { label: "PHOTOS / DAY", value: "48.1", unit: "k", delta: "-1.1% wk", "delta-dir": "down", spark: "▇▆▆▅▄▃▂" }),
-            h("glyph-kpi", { label: "MRR", value: "$214", unit: "k", delta: "+5.8% mo", "delta-dir": "up", spark: "▃▄▄▅▆▇█" }),
-            h("glyph-kpi", { label: "OPEN REVIEWS", value: "37", delta: "flat", "delta-dir": "" }))),
+            tip(h("glyph-kpi", { label: "ACTIVE COMPANIES", value: "1,284", delta: "+3.2% wk", "delta-dir": "up", spark: "▂▃▃▅▆▇█" }), 'delta-dir: "up" — ▲ green delta; sparkline shows the trend'),
+            tip(h("glyph-kpi", { label: "PHOTOS / DAY", value: "48.1", unit: "k", delta: "-1.1% wk", "delta-dir": "down", spark: "▇▆▆▅▄▃▂" }), 'unit + delta-dir: "down" — 48.1k, ▼ red delta'),
+            tip(h("glyph-kpi", { label: "MRR", value: "$214", unit: "k", delta: "+5.8% mo", "delta-dir": "up", spark: "▃▄▄▅▆▇█" }), 'unit: "k" — value shows $214k; delta-dir "up" is ▲'),
+            tip(h("glyph-kpi", { label: "OPEN REVIEWS", value: "37", delta: "flat", "delta-dir": "" }), 'delta-dir: "" — • neutral delta; no sparkline variant'))),
           CodeBlock('<glyph-kpi label="ACTIVE COMPANIES" value="1,284"\n           delta="+3.2% wk" delta-dir="up" spark="▂▃▃▅▆▇█"></glyph-kpi>\n<glyph-kpi label="MRR" value="$214" unit="k"\n           delta="+5.8% mo" delta-dir="up"></glyph-kpi>'),
           PropsTable([
             { name: "label", type: "attr", req: true, desc: "Uppercase metric label" },
@@ -2905,7 +2975,10 @@ body.db-crt::before {
       Section({ id: "progress", no: "C10", title: "Progress", desc: "An inline, pure-mono block meter for uploads, quotas, and storage — [████████░░░░] 64%. It stays on the monospace grid, so it reads naturally inside log lines, table cells, and dense panels rather than introducing a filled UI bar that fights the terminal aesthetic." },
         Entry({ title: "Progress", api: "<glyph-progress value max width>", desc: "Block glyphs (█ / ░) sized to a fixed cell count. The live demo below ticks an in-progress upload." },
           Specimen({ label: "live" }, progressDemo()),
-          Specimen({ col: true }, h("glyph-progress", { value: 64, width: 20 }), h("glyph-progress", { value: 92, width: 20 }), h("glyph-progress", { value: 28, width: 12, brackets: "false" })),
+          Specimen({ col: true },
+            tip(h("glyph-progress", { value: 64, width: 20 }), "<glyph-progress value=64 width=20> — [brackets] + % are the defaults"),
+            tip(h("glyph-progress", { value: 92, width: 20 }), "<glyph-progress value=92 width=20> — accent-filled cells, rule-colored empty cells"),
+            tip(h("glyph-progress", { value: 28, width: 12, brackets: "false" }), 'brackets="false" — drops the [ ] wrapper; width sets cell count')),
           CodeBlock('<glyph-progress value="64" width="20"></glyph-progress>            <!-- [██████████████░░░░░░] 64% -->\n<glyph-progress value="28" width="12" brackets="false"></glyph-progress>'),
           Note("Cells are ", h("b", {}, "fixed-size CSS blocks"), " (not font glyphs), so every cell is exactly the same height — filled cells take ", h("code", {}, "var(--accent)"), ", empty cells ", h("code", {}, "var(--rule)"), " — and the bar stays perfectly even as it fills."),
           PropsTable([
@@ -2919,7 +2992,7 @@ body.db-crt::before {
       /* ─────────── TABLES ─────────── */
       Section({ id: "tables", no: "C11", title: "Tables", desc: "The workhorse. Column-driven, sortable, with a select-all header checkbox, per-row selection, optional row click, and a ⋯ actions menu. Pass column render functions to drop any element into a cell." },
         Entry({ title: "Table", api: "el.config = { columns, rows, getId, … }" },
-          Specimen({ label: "live · sort & select" }, h("div", { style: { width: "100%", border: "1px solid var(--rule)" } }, tableDemo())),
+          Specimen({ label: "live · sort & select" }, tip(h("div", { style: { width: "100%", border: "1px solid var(--rule)" } }, tableDemo()), "<glyph-table> — sortable, selectable; click a header to sort, a row to select")),
           CodeBlock('const table = document.createElement("glyph-table");\ntable.config = {\n  columns: [\n    { key: "company", label: "company", sortable: true,\n      render: (r) => Object.assign(document.createElement("glyph-person"), { }) ||\n        el("glyph-person", { name: r.company }) },\n    { key: "plan", label: "plan", sortable: true,\n      render: (r) => el("glyph-tag", { tone: PLAN_TONE[r.plan] }, r.plan) },\n    { key: "status", label: "status", sortable: true,\n      render: (r) => el("glyph-badge", { status: r.status }) },\n    { key: "photos", label: "photos", sortable: true, align: "right",\n      render: (r) => r.photos.toLocaleString() },\n  ],\n  rows,\n  getId: (r) => r.id,\n  sort: { key: "photos", dir: "desc" },\n  selected: new Set(),\n  onRowClick: openCompany,\n  rowActions: (r) => [\n    { glyph: "→", label: "Open", hint: "↵", onSelect: () => openCompany(r) },\n    { glyph: "⊘", label: "Suspend", danger: true, onSelect: () => suspend(r) },\n  ],\n};'),
           PropsTable([
             { name: "columns", type: "Column[]", req: true, desc: "{ key, label, sortable?, align?, width?, render? }" },
@@ -2955,6 +3028,11 @@ body.db-crt::before {
       Section({ id: "changelog", no: "H1", title: "Changelog", desc: "All notable changes to the Glyph design book, following semantic versioning." },
         h("div", { class: "db-changelog" },
           h("div", { class: "db-cl-entry" },
+            h("span", { class: "db-cl-ver minor" }, "0.3.0"),
+            h("span", { class: "db-cl-date" }, "2026-11-05"),
+            h("span", { class: "db-cl-text" }, "Add hover tooltips to every live specimen — each sample names its element or class and explains the variant it demonstrates.")
+          ),
+          h("div", { class: "db-cl-entry" },
             h("span", { class: "db-cl-ver minor" }, "0.2.0"),
             h("span", { class: "db-cl-date" }, "2026-07-17"),
             h("span", { class: "db-cl-text" }, "Add ", h("code", {}, "<glyph-datepicker>"), " — calendar dropdown with single-date and range modes. Range mode shows two months side-by-side with hover preview and accent wash highlighting. Now 13 Web Components.")
@@ -2974,7 +3052,7 @@ body.db-crt::before {
     );
 
     var top = h("div", { class: "db-top" },
-      h("div", { class: "db-brand" }, h("span", { class: "mark" }, "◆ Glyph"), h("span", { class: "ttl" }, "Design Book"), h("span", { class: "ver" }, "v0.2.0")),
+      h("div", { class: "db-brand" }, h("span", { class: "mark" }, "◆ Glyph"), h("span", { class: "ttl" }, "Design Book"), h("span", { class: "ver" }, "v0.3.0")),
       h("div", { class: "spacer" }),
       Controls(state));
 
